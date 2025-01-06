@@ -1,3 +1,4 @@
+#include <string.h>
 #ifndef WADDLE_H_
 #define WADDLE_H_ 1
 
@@ -36,17 +37,15 @@
     #define WDLAPI extern
 #endif
 
-#include <stdint.h>
+typedef unsigned char      u8;
+typedef unsigned short     u16;
+typedef unsigned int       u32;
+typedef unsigned long long u64;
 
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef int8_t  i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
+typedef signed char      i8;
+typedef signed short     i16;
+typedef signed int       i32;
+typedef signed long long i64;
 
 typedef float  f32;
 typedef double f64;
@@ -66,8 +65,29 @@ typedef u32 b32;
 #define NULL ((void*) 0)
 #endif // NULL
 
+// -----------------------------------------------------------------------------
+
 WDLAPI b8 wdl_init(void);
 WDLAPI b8 wdl_terminate(void);
+
+// -- Misc ---------------------------------------------------------------------
+
+#define WDL_KB(V) ((u64) (V) << 10)
+#define WDL_MB(V) ((u64) (V) << 20)
+#define WDL_GB(V) ((u64) (V) << 30)
+
+// -- Arena --------------------------------------------------------------------
+
+typedef struct wdl_arena_t wdl_arena_t;
+
+WDLAPI wdl_arena_t* arena_create(void);
+WDLAPI wdl_arena_t* arena_create_sized(u64 size);
+WDLAPI void         arena_destroy(wdl_arena_t* arena);
+WDLAPI void         arena_set_align(wdl_arena_t* arena, u8 align);
+WDLAPI void*        arena_push(wdl_arena_t* arena, u64 size);
+WDLAPI void*        arena_push_no_zero(wdl_arena_t* arena, u64 size);
+WDLAPI void         arena_pop(wdl_arena_t* arena, u64 size);
+WDLAPI void         arena_clear(wdl_arena_t* arena);
 
 // -- OS -----------------------------------------------------------------------
 
@@ -112,6 +132,73 @@ b8 wdl_terminate(void) {
         return false;
     }
     return true;
+}
+
+// -- Arena --------------------------------------------------------------------
+
+struct wdl_arena_t {
+    u8* data;
+    u64 capacity;
+    u64 commit;
+    u64 pos;
+    u8 align;
+};
+
+wdl_arena_t* arena_create(void) {
+    return arena_create_sized(WDL_GB(1));
+}
+
+wdl_arena_t* arena_create_sized(u64 capacity) {
+    wdl_arena_t* arena = wdl_os_reserve_memory(capacity + sizeof(wdl_arena_t));
+    wdl_os_commit_memory(arena, sizeof(wdl_arena_t));
+    u8* data = (u8*) arena + sizeof(wdl_arena_t);
+    wdl_os_commit_memory(data, wdl_os_get_page_size());
+    *arena = (wdl_arena_t) {
+        .commit = wdl_os_get_page_size(),
+        .data = data,
+        .align = sizeof(void*),
+        .capacity = capacity,
+    };
+    return arena;
+}
+
+void arena_destroy(wdl_arena_t* arena) {
+    wdl_os_release_memory(arena, arena->capacity + sizeof(wdl_arena_t));
+}
+
+void arena_set_align(wdl_arena_t* arena, u8 align) {
+    arena->align = align;
+}
+
+void* arena_push(wdl_arena_t* arena, u64 size) {
+    void* ptr = arena_push_no_zero(arena, size);
+    memset(ptr, 0, size);
+    return ptr;
+}
+
+void* arena_push_no_zero(wdl_arena_t* arena, u64 size) {
+    u64 next_pos = arena->pos + size;
+    next_pos += arena->align - 1;
+    u64 offset = next_pos % arena->align;
+    u64 next_pos_aligned = next_pos - offset;
+    arena->pos += next_pos_aligned;
+
+    while (arena->pos >= arena->commit) {
+        arena->commit += wdl_os_get_page_size();
+        // TODO: Handle arena OOM state.
+        // if (arena->commit > arena->capacity) {}
+        wdl_os_commit_memory(arena->data, arena->commit);
+    }
+
+    return arena->data + arena->pos;
+}
+
+void arena_pop(wdl_arena_t* arena, u64 size) {
+    arena->pos -= size;
+}
+
+void arena_clear(wdl_arena_t* arena) {
+    arena->pos = 0;
 }
 
 // -- OS -----------------------------------------------------------------------
