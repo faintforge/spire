@@ -37,6 +37,14 @@
     #define WDLAPI extern
 #endif
 
+#ifdef WDL_OS_WINDOWS
+#define WDL_THREAD_LOCAL __declspec(thread)
+#endif // WDL_OS_WINDOWS
+
+#ifdef WDL_POSIX
+#define WDL_THREAD_LOCAL __thread
+#endif // WDL_POSIX
+
 typedef unsigned char      u8;
 typedef unsigned short     u16;
 typedef unsigned int       u32;
@@ -80,20 +88,22 @@ WDLAPI b8 wdl_terminate(void);
 #define WDL_MAX(A, B) ((A) > (B) ? (A) : (B))
 #define WDL_CLAMP(V, MIN, MAX) ((V) < (MIN) ? (MIN) : (V) > (MAX) ? (MAX) : (V))
 
+#define WDL_ARRLEN(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
+
 // -- Arena --------------------------------------------------------------------
 
 typedef struct wdl_arena_t wdl_arena_t;
 
-WDLAPI wdl_arena_t* arena_create(void);
-WDLAPI wdl_arena_t* arena_create_sized(u64 size);
-WDLAPI void         arena_destroy(wdl_arena_t* arena);
-WDLAPI void         arena_set_align(wdl_arena_t* arena, u8 align);
-WDLAPI void*        arena_push(wdl_arena_t* arena, u64 size);
-WDLAPI void*        arena_push_no_zero(wdl_arena_t* arena, u64 size);
-WDLAPI void         arena_pop(wdl_arena_t* arena, u64 size);
-WDLAPI void         arena_pop_to(wdl_arena_t* arena, u64 pos);
-WDLAPI void         arena_clear(wdl_arena_t* arena);
-WDLAPI u64          arena_get_pos(wdl_arena_t* arena);
+WDLAPI wdl_arena_t* wdl_arena_create(void);
+WDLAPI wdl_arena_t* wdl_arena_create_sized(u64 size);
+WDLAPI void         wdl_arena_destroy(wdl_arena_t* arena);
+WDLAPI void         wdl_arena_set_align(wdl_arena_t* arena, u8 align);
+WDLAPI void*        wdl_arena_push(wdl_arena_t* arena, u64 size);
+WDLAPI void*        wdl_arena_push_no_zero(wdl_arena_t* arena, u64 size);
+WDLAPI void         wdl_arena_pop(wdl_arena_t* arena, u64 size);
+WDLAPI void         wdl_arena_pop_to(wdl_arena_t* arena, u64 pos);
+WDLAPI void         wdl_arena_clear(wdl_arena_t* arena);
+WDLAPI u64          wdl_arena_get_pos(wdl_arena_t* arena);
 
 typedef struct wdl_temp_t wdl_temp_t;
 struct wdl_temp_t {
@@ -101,8 +111,21 @@ struct wdl_temp_t {
     u64 pos;
 };
 
-WDLAPI wdl_temp_t arena_temp_begin(wdl_arena_t* arena);
-WDLAPI void       arena_temp_end(wdl_temp_t temp);
+WDLAPI wdl_temp_t wdl_temp_begin(wdl_arena_t* arena);
+WDLAPI void       wdl_temp_end(wdl_temp_t temp);
+
+// -- Thread context -----------------------------------------------------------
+
+typedef struct wdl_thread_ctx_t wdl_thread_ctx_t;
+
+WDLAPI wdl_thread_ctx_t* wdl_thread_ctx_create(void);
+WDLAPI void              wdl_thread_ctx_destroy(wdl_thread_ctx_t* ctx);
+WDLAPI void              wdl_thread_ctx_set(wdl_thread_ctx_t* ctx);
+
+typedef wdl_temp_t wdl_scratch_t;
+
+WDLAPI wdl_scratch_t wdl_scratch_aquire(wdl_arena_t* const* conflicts, u32 count);
+WDLAPI void          wdl_scratch_release(wdl_scratch_t scratch);
 
 // -- OS -----------------------------------------------------------------------
 
@@ -132,6 +155,7 @@ static b8 _wdl_platform_termiante(void);
 typedef struct _wdl_state_t _wdl_state_t;
 struct _wdl_state_t {
     _wdl_platform_state_t *platform;
+    wdl_thread_ctx_t* main_ctx;
 };
 
 static _wdl_state_t _wdl_state = {0};
@@ -140,6 +164,8 @@ b8 wdl_init(void) {
     if (!_wdl_platform_init()) {
         return false;
     }
+    _wdl_state.main_ctx = wdl_thread_ctx_create();
+    wdl_thread_ctx_set(_wdl_state.main_ctx);
     return true;
 }
 
@@ -147,6 +173,8 @@ b8 wdl_terminate(void) {
     if (!_wdl_platform_termiante()) {
         return false;
     }
+    wdl_thread_ctx_set(NULL);
+    wdl_thread_ctx_destroy(_wdl_state.main_ctx);
     return true;
 }
 
@@ -159,11 +187,11 @@ struct wdl_arena_t {
     u8 align;
 };
 
-wdl_arena_t* arena_create(void) {
-    return arena_create_sized(WDL_GB(1));
+wdl_arena_t* wdl_arena_create(void) {
+    return wdl_arena_create_sized(WDL_GB(1));
 }
 
-wdl_arena_t* arena_create_sized(u64 capacity) {
+wdl_arena_t* wdl_arena_create_sized(u64 capacity) {
     wdl_arena_t* arena = wdl_os_reserve_memory(capacity);
     wdl_os_commit_memory(arena, wdl_os_get_page_size());
 
@@ -176,16 +204,16 @@ wdl_arena_t* arena_create_sized(u64 capacity) {
     return arena;
 }
 
-void arena_destroy(wdl_arena_t* arena) {
+void wdl_arena_destroy(wdl_arena_t* arena) {
     wdl_os_release_memory(arena, arena->capacity);
 }
 
-void arena_set_align(wdl_arena_t* arena, u8 align) {
+void wdl_arena_set_align(wdl_arena_t* arena, u8 align) {
     arena->align = align;
 }
 
-void* arena_push(wdl_arena_t* arena, u64 size) {
-    u8* ptr = arena_push_no_zero(arena, size);
+void* wdl_arena_push(wdl_arena_t* arena, u64 size) {
+    u8* ptr = wdl_arena_push_no_zero(arena, size);
     for (u32 i = 0; i < size; i++) {
         ptr[i] = 0;
     }
@@ -193,7 +221,7 @@ void* arena_push(wdl_arena_t* arena, u64 size) {
     return ptr;
 }
 
-void* arena_push_no_zero(wdl_arena_t* arena, u64 size) {
+void* wdl_arena_push_no_zero(wdl_arena_t* arena, u64 size) {
     u64 start_pos = arena->pos;
 
     u64 next_pos = arena->pos + size;
@@ -212,31 +240,99 @@ void* arena_push_no_zero(wdl_arena_t* arena, u64 size) {
     return (u8*) arena + start_pos;
 }
 
-void arena_pop(wdl_arena_t* arena, u64 size) {
+void wdl_arena_pop(wdl_arena_t* arena, u64 size) {
     arena->pos = WDL_MIN(arena->pos - size, sizeof(wdl_arena_t));
 }
 
-void arena_pop_to(wdl_arena_t* arena, u64 pos) {
+void wdl_arena_pop_to(wdl_arena_t* arena, u64 pos) {
     arena->pos = WDL_MIN(pos, sizeof(wdl_arena_t));
 }
 
-void arena_clear(wdl_arena_t* arena) {
+void wdl_arena_clear(wdl_arena_t* arena) {
     arena->pos = sizeof(wdl_arena_t);
 }
 
-u64 arena_get_pos(wdl_arena_t* arena) {
+u64 wdl_arena_get_pos(wdl_arena_t* arena) {
     return arena->pos;
 }
 
-wdl_temp_t arena_temp_begin(wdl_arena_t* arena) {
+wdl_temp_t wdl_temp_begin(wdl_arena_t* arena) {
     return (wdl_temp_t) {
         .arena = arena,
         .pos = arena->pos,
     };
 }
 
-void arena_temp_end(wdl_temp_t temp) {
-    arena_pop_to(temp.arena, temp.pos);
+void wdl_temp_end(wdl_temp_t temp) {
+    wdl_arena_pop_to(temp.arena, temp.pos);
+}
+
+// -- Thread context -----------------------------------------------------------
+
+#define SCRATCH_ARENA_COUNT 2
+
+struct wdl_thread_ctx_t {
+    wdl_arena_t *scratch_arenas[SCRATCH_ARENA_COUNT];
+};
+
+WDL_THREAD_LOCAL wdl_thread_ctx_t* _wdl_thread_ctx = {0};
+
+wdl_thread_ctx_t* wdl_thread_ctx_create(void) {
+    wdl_arena_t* scratch_arenas[SCRATCH_ARENA_COUNT] = {0};
+    for (u32 i = 0; i < SCRATCH_ARENA_COUNT; i++) {
+        scratch_arenas[i] = wdl_arena_create();
+    }
+
+    wdl_thread_ctx_t* ctx = wdl_arena_push(scratch_arenas[0], sizeof(wdl_thread_ctx_t));
+    for (u32 i = 0; i < SCRATCH_ARENA_COUNT; i++) {
+        ctx->scratch_arenas[i] = scratch_arenas[i];
+    }
+
+    return ctx;
+}
+
+void wdl_thread_ctx_destroy(wdl_thread_ctx_t* ctx) {
+    // Destroy the arenas in reverse order since the thread context lives on
+    // the first arena.
+    for (i32 i = WDL_ARRLEN(ctx->scratch_arenas) - 1; i >= 0; i--) {
+        wdl_arena_destroy(ctx->scratch_arenas[i]);
+    }
+}
+
+void wdl_thread_ctx_set(wdl_thread_ctx_t* ctx) {
+    _wdl_thread_ctx = ctx;
+}
+
+static wdl_arena_t* get_non_conflicting_scratch_arena(wdl_arena_t* const* conflicts, u32 count) {
+    if (_wdl_thread_ctx == NULL) {
+        return NULL;
+    }
+
+    if (count == 0) {
+        return _wdl_thread_ctx->scratch_arenas[0];
+    }
+
+    for (u32 i = 0; i < count; i++) {
+        for (u32 j = 0; j < WDL_ARRLEN(_wdl_thread_ctx->scratch_arenas); j++) {
+            if (conflicts[i] != _wdl_thread_ctx->scratch_arenas[j]) {
+                return _wdl_thread_ctx->scratch_arenas[j];
+            }
+        }
+    }
+
+    return NULL;
+}
+
+wdl_scratch_t wdl_scratch_aquire(wdl_arena_t* const* conflicts, u32 count) {
+    wdl_arena_t* scratch = get_non_conflicting_scratch_arena(conflicts, count);
+    if (scratch == NULL) {
+        return (wdl_scratch_t) {0};
+    }
+    return wdl_temp_begin(scratch);
+}
+
+void wdl_scratch_release(wdl_scratch_t scratch) {
+    wdl_temp_end(scratch);
 }
 
 // -- OS -----------------------------------------------------------------------
