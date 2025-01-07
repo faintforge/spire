@@ -122,10 +122,12 @@ WDLAPI wdl_thread_ctx_t* wdl_thread_ctx_create(void);
 WDLAPI void              wdl_thread_ctx_destroy(wdl_thread_ctx_t* ctx);
 WDLAPI void              wdl_thread_ctx_set(wdl_thread_ctx_t* ctx);
 
+// -- Scratch arena ------------------------------------------------------------
+
 typedef wdl_temp_t wdl_scratch_t;
 
-WDLAPI wdl_scratch_t wdl_scratch_aquire(wdl_arena_t* const* conflicts, u32 count);
-WDLAPI void          wdl_scratch_release(wdl_scratch_t scratch);
+WDLAPI wdl_scratch_t wdl_scratch_begin(wdl_arena_t* const* conflicts, u32 count);
+WDLAPI void          wdl_scratch_end(wdl_scratch_t scratch);
 
 // -- OS -----------------------------------------------------------------------
 
@@ -241,11 +243,11 @@ void* wdl_arena_push_no_zero(wdl_arena_t* arena, u64 size) {
 }
 
 void wdl_arena_pop(wdl_arena_t* arena, u64 size) {
-    arena->pos = WDL_MIN(arena->pos - size, sizeof(wdl_arena_t));
+    arena->pos = WDL_MAX(arena->pos - size, sizeof(wdl_arena_t));
 }
 
 void wdl_arena_pop_to(wdl_arena_t* arena, u64 pos) {
-    arena->pos = WDL_MIN(pos, sizeof(wdl_arena_t));
+    arena->pos = WDL_MAX(pos, sizeof(wdl_arena_t));
 }
 
 void wdl_arena_clear(wdl_arena_t* arena) {
@@ -323,7 +325,7 @@ static wdl_arena_t* get_non_conflicting_scratch_arena(wdl_arena_t* const* confli
     return NULL;
 }
 
-wdl_scratch_t wdl_scratch_aquire(wdl_arena_t* const* conflicts, u32 count) {
+wdl_scratch_t wdl_scratch_begin(wdl_arena_t* const* conflicts, u32 count) {
     wdl_arena_t* scratch = get_non_conflicting_scratch_arena(conflicts, count);
     if (scratch == NULL) {
         return (wdl_scratch_t) {0};
@@ -331,7 +333,7 @@ wdl_scratch_t wdl_scratch_aquire(wdl_arena_t* const* conflicts, u32 count) {
     return wdl_temp_begin(scratch);
 }
 
-void wdl_scratch_release(wdl_scratch_t scratch) {
+void wdl_scratch_end(wdl_scratch_t scratch) {
     wdl_temp_end(scratch);
 }
 
