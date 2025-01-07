@@ -91,8 +91,18 @@ WDLAPI void         arena_set_align(wdl_arena_t* arena, u8 align);
 WDLAPI void*        arena_push(wdl_arena_t* arena, u64 size);
 WDLAPI void*        arena_push_no_zero(wdl_arena_t* arena, u64 size);
 WDLAPI void         arena_pop(wdl_arena_t* arena, u64 size);
+WDLAPI void         arena_pop_to(wdl_arena_t* arena, u64 pos);
 WDLAPI void         arena_clear(wdl_arena_t* arena);
 WDLAPI u64          arena_get_pos(wdl_arena_t* arena);
+
+typedef struct wdl_temp_t wdl_temp_t;
+struct wdl_temp_t {
+    wdl_arena_t* arena;
+    u64 pos;
+};
+
+WDLAPI wdl_temp_t arena_temp_begin(wdl_arena_t* arena);
+WDLAPI void       arena_temp_end(wdl_temp_t temp);
 
 // -- OS -----------------------------------------------------------------------
 
@@ -206,12 +216,27 @@ void arena_pop(wdl_arena_t* arena, u64 size) {
     arena->pos = WDL_MIN(arena->pos - size, sizeof(wdl_arena_t));
 }
 
+void arena_pop_to(wdl_arena_t* arena, u64 pos) {
+    arena->pos = WDL_MIN(pos, sizeof(wdl_arena_t));
+}
+
 void arena_clear(wdl_arena_t* arena) {
     arena->pos = sizeof(wdl_arena_t);
 }
 
 u64 arena_get_pos(wdl_arena_t* arena) {
     return arena->pos;
+}
+
+wdl_temp_t arena_temp_begin(wdl_arena_t* arena) {
+    return (wdl_temp_t) {
+        .arena = arena,
+        .pos = arena->pos,
+    };
+}
+
+void arena_temp_end(wdl_temp_t temp) {
+    arena_pop_to(temp.arena, temp.pos);
 }
 
 // -- OS -----------------------------------------------------------------------
