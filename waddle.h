@@ -128,6 +128,28 @@ typedef WDL_Temp WDL_Scratch;
 WDLAPI WDL_Scratch wdl_scratch_begin(WDL_Arena* const* conflicts, u32 count);
 WDLAPI void          wdl_scratch_end(WDL_Scratch scratch);
 
+// -- Logging ------------------------------------------------------------------
+
+typedef enum WDL_LogLevel {
+    WDL_LOG_LEVEL_FATAL,
+    WDL_LOG_LEVEL_ERROR,
+    WDL_LOG_LEVEL_WARN,
+    WDL_LOG_LEVEL_INFO,
+    WDL_LOG_LEVEL_DEBUG,
+    WDL_LOG_LEVEL_TRACE,
+
+    WDL_LOG_LEVEL_COUNT,
+} WDL_LogLevel;
+
+#define WDL_FATAL(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_FATAL, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define WDL_ERROR(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_ERROR, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define WDL_WARN(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_WARN, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define WDL_INFO(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_INFO, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define WDL_DEBUG(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_DEBUG, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define WDL_TRACE(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_TRACE, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+
+WDLAPI void _wdl_log_internal(WDL_LogLevel level, const char* file, u32 line, const char* msg, ...);
+
 // -- OS -----------------------------------------------------------------------
 
 WDLAPI void* wdl_os_reserve_memory(u32 size);
@@ -148,6 +170,10 @@ WDLAPI u32   wdl_os_get_page_size(void);
  */
 // :implementation
 #ifdef WADDLE_IMPLEMENTATION
+
+#include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
 
 typedef struct _WDL_PlatformState _WDL_PlatformState;
 static b8 _wdl_platform_init(void);
@@ -304,6 +330,8 @@ void wdl_thread_ctx_set(WDL_ThreadCtx* ctx) {
     _wdl_thread_ctx = ctx;
 }
 
+// -- Scratch arena ------------------------------------------------------------
+
 static WDL_Arena* get_non_conflicting_scratch_arena(WDL_Arena* const* conflicts, u32 count) {
     if (_wdl_thread_ctx == NULL) {
         return NULL;
@@ -334,6 +362,28 @@ WDL_Scratch wdl_scratch_begin(WDL_Arena* const* conflicts, u32 count) {
 
 void wdl_scratch_end(WDL_Scratch scratch) {
     wdl_temp_end(scratch);
+}
+
+// -- Logging ------------------------------------------------------------------
+
+void _wdl_log_internal(WDL_LogLevel level, const char* file, u32 line, const char* msg, ...) {
+    const char* const level_str[WDL_LOG_LEVEL_COUNT] = {
+        "[FATAL]",
+        "[ERROR]",
+        "[WARN] ",
+        "[INFO] ",
+        "[DEBUG]",
+        "[TRACE]",
+    };
+
+    printf("%s %s:%u: ", level_str[level], file, line);
+
+    va_list args;
+    va_start(args, msg);
+    vprintf(msg, args);
+    va_end(args);
+    printf("\n");
+
 }
 
 // -- OS -----------------------------------------------------------------------
