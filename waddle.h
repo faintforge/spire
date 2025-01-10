@@ -160,6 +160,21 @@ WDLAPI WDL_Lib*    wdl_lib_load(WDL_Arena* arena, const char* filename);
 WDLAPI void        wdl_lib_unload(WDL_Lib* lib);
 WDLAPI WDL_LibFunc wdl_lib_func(WDL_Lib* lib, const char* func_name);
 
+// -- String -------------------------------------------------------------------
+
+typedef struct WDL_Str WDL_Str;
+struct WDL_Str {
+    const u8* data;
+    u32 len;
+};
+
+#define WDL_STR_LIT(STR_LIT) wdl_str((STR_LIT), sizeof(STR_LIT) - 1)
+#define WDL_CSTR(CSTR) wdl_str((CSTR), wdl_str_cstrlen(CSTR))
+
+WDLAPI WDL_Str wdl_str(const u8* data, u32 len);
+WDLAPI u32     wdl_str_cstrlen(const u8* cstr);
+WDLAPI char*   wdl_str_to_cstr(WDL_Arena* arena, WDL_Str str);
+
 // -- OS -----------------------------------------------------------------------
 
 WDLAPI void* wdl_os_reserve_memory(u32 size);
@@ -392,6 +407,30 @@ void _wdl_log_internal(WDL_LogLevel level, const char* file, u32 line, const cha
     va_end(args);
     printf("\n");
 
+}
+
+// -- String -------------------------------------------------------------------
+
+WDL_Str wdl_str(const u8* data, u32 len) {
+    return (WDL_Str) {
+        .data = data,
+        .len = len,
+    };
+}
+
+u32 wdl_str_cstrlen(const u8* cstr) {
+    u32 len = 0;
+    while (cstr[len] != 0) {
+        len++;
+    }
+    return len;
+}
+
+char* wdl_str_to_cstr(WDL_Arena* arena, WDL_Str str)  {
+    char* cstr = wdl_arena_push_no_zero(arena, str.len + 1);
+    memcpy(cstr, str.data, str.len);
+    cstr[str.len] = 0;
+    return cstr;
 }
 
 // -- OS -----------------------------------------------------------------------
