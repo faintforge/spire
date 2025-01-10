@@ -158,8 +158,6 @@ WDLAPI void  wdl_os_release_memory(void* ptr, u32 size);
 WDLAPI f32   wdl_os_get_time(void);
 WDLAPI u32   wdl_os_get_page_size(void);
 
-#endif // WADDLE_H_
-
 /*
  *  ___                 _                           _        _   _
  * |_ _|_ __ ___  _ __ | | ___ _ __ ___   ___ _ __ | |_ __ _| |_(_) ___  _ __
@@ -452,3 +450,4 @@ u32 wdl_os_get_page_size(void) {
 #endif // WDL_POSIX
 
 #endif // WADDLE_IMPLEMENTATION
+#endif // WADDLE_H_
