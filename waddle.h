@@ -88,6 +88,7 @@ WDLAPI b8 wdl_terminate(void);
 #define WDL_CLAMP(V, MIN, MAX) ((V) < (MIN) ? (MIN) : (V) > (MAX) ? (MAX) : (V))
 
 #define WDL_ARRLEN(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
+#define WDL_OFFSET(S, M) ((u64) &((S*) 0)->M)
 
 // -- Arena --------------------------------------------------------------------
 
@@ -168,8 +169,8 @@ struct WDL_Str {
     u32 len;
 };
 
-#define WDL_STR_LIT(STR_LIT) wdl_str((STR_LIT), sizeof(STR_LIT) - 1)
-#define WDL_CSTR(CSTR) wdl_str((CSTR), wdl_str_cstrlen(CSTR))
+#define WDL_STR_LIT(STR_LIT) wdl_str((const u8*) (STR_LIT), sizeof(STR_LIT) - 1)
+#define WDL_CSTR(CSTR) wdl_str((const u8*) (CSTR), wdl_str_cstrlen((const u8*) (CSTR)))
 
 WDLAPI WDL_Str wdl_str(const u8* data, u32 len);
 WDLAPI u32     wdl_str_cstrlen(const u8* cstr);
