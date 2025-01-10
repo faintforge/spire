@@ -392,15 +392,15 @@ void wdl_scratch_end(WDL_Scratch scratch) {
 
 void _wdl_log_internal(WDL_LogLevel level, const char* file, u32 line, const char* msg, ...) {
     const char* const level_str[WDL_LOG_LEVEL_COUNT] = {
-        "[FATAL]",
-        "[ERROR]",
-        "[WARN] ",
-        "[INFO] ",
-        "[DEBUG]",
-        "[TRACE]",
+        "\033[101;30mFATAL\033[0;0m",
+        "\033[0;91mERROR\033[0;0m",
+        "\033[0;93mWARN \033[0;0m",
+        "\033[0;92mINFO \033[0;0m",
+        "\033[0;94mDEBUG\033[0;0m",
+        "\033[0;95mTRACE\033[0;0m",
     };
 
-    printf("%s %s:%u: ", level_str[level], file, line);
+    printf("%s \033[0;90m%s:%u: \033[0m", level_str[level], file, line);
 
     va_list args;
     va_start(args, msg);
