@@ -150,6 +150,16 @@ typedef enum WDL_LogLevel {
 
 WDLAPI void _wdl_log_internal(WDL_LogLevel level, const char* file, u32 line, const char* msg, ...);
 
+// -- Library ------------------------------------------------------------------
+
+typedef struct WDL_Lib WDL_Lib;
+
+typedef void (*WDL_LibFunc)(void);
+
+WDLAPI WDL_Lib*    wdl_lib_load(WDL_Arena* arena, const char* filename);
+WDLAPI void        wdl_lib_unload(WDL_Lib* lib);
+WDLAPI WDL_LibFunc wdl_lib_func(WDL_Lib* lib, const char* func_name);
+
 // -- OS -----------------------------------------------------------------------
 
 WDLAPI void* wdl_os_reserve_memory(u32 size);
@@ -393,6 +403,7 @@ void _wdl_log_internal(WDL_LogLevel level, const char* file, u32 line, const cha
 #include <unistd.h>
 #include <time.h>
 #include <sys/mman.h>
+#include <dlfcn.h>
 
 struct _WDL_PlatformState {
     u32 page_size;
@@ -445,6 +456,27 @@ f32 wdl_os_get_time(void) {
 
 u32 wdl_os_get_page_size(void) {
     return _wdl_state.platform->page_size;
+}
+
+// -- Library ------------------------------------------------------------------
+
+struct WDL_Lib {
+    void* handle;
+};
+
+WDL_Lib* wdl_lib_load(WDL_Arena* arena, const char* filename) {
+    WDL_Lib* lib = wdl_arena_push_no_zero(arena, sizeof(WDL_Lib));
+    lib->handle = dlopen(filename, RTLD_LAZY | RTLD_LOCAL);
+    return lib;
+}
+
+void wdl_lib_unload(WDL_Lib* lib) {
+    dlclose(lib->handle);
+    lib->handle = NULL;
+}
+
+WDL_LibFunc wdl_lib_func(WDL_Lib* lib, const char* func_name) {
+    return dlsym(lib->handle, func_name);
 }
 
 #endif // WDL_POSIX
