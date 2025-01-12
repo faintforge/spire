@@ -227,6 +227,70 @@ WDL_INLINE WDL_Ivec2 wdl_iv2_divs(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(ve
 WDL_INLINE f32 wdl_iv2_magnitude_squared(WDL_Ivec2 vec) { return vec.x * vec.x + vec.y * vec.y; }
 WDL_INLINE f32 wdl_iv2_magnitude(WDL_Ivec2 vec) { return sqrtf(wdl_iv2_magnitude_squared(vec)); }
 
+typedef struct WDL_Vec4 WDL_Vec4;
+struct WDL_Vec4 {
+    f32 x, y, z, w;
+};
+
+WDL_INLINE WDL_Vec4 vec4(f32 x, f32 y, f32 z, f32 w) { return (WDL_Vec4) {x, y, z, w}; }
+WDL_INLINE WDL_Vec4 vec4s(f32 scaler) { return (WDL_Vec4) {scaler, scaler, scaler, scaler}; }
+
+typedef struct WDL_Mat4 WDL_Mat4;
+struct WDL_Mat4 {
+    WDL_Vec4 a, b, c, d;
+};
+
+static const WDL_Mat4 WDL_M4_IDENTITY = {
+    {1.0f, 0.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 0.0f, 1.0f},
+};
+
+WDL_INLINE WDL_Vec4 wdl_m4_mul_vec(WDL_Mat4 mat, WDL_Vec4 vec) {
+    return (WDL_Vec4) {
+        vec.x*mat.a.x + vec.y*mat.a.y + vec.z*mat.a.z + vec.w*mat.a.w,
+        vec.x*mat.b.x + vec.y*mat.b.y + vec.z*mat.b.z + vec.w*mat.b.w,
+        vec.x*mat.c.x + vec.y*mat.c.y + vec.z*mat.c.z + vec.w*mat.c.w,
+        vec.x*mat.d.x + vec.y*mat.d.y + vec.z*mat.d.z + vec.w*mat.d.w,
+    };
+}
+
+// https://en.wikipedia.org/wiki/Orthographic_projection#Geometry
+WDL_INLINE WDL_Mat4 wdl_m4_ortho_projection(f32 left, f32 right, f32 top, f32 bottom, f32 far, f32 near) {
+    f32 x = 2.0f / (right - left);
+    f32 y = 2.0f / (top - bottom);
+    f32 z = -2.0f / (far - near);
+
+    f32 x_off = -(right+left) / (right-left);
+    f32 y_off = -(top+bottom) / (top-bottom);
+    f32 z_off = -(far+near) / (far-near);
+
+    return (WDL_Mat4) {
+        {x, 0, 0, x_off},
+        {0, y, 0, y_off},
+        {0, 0, z, z_off},
+        {0, 0, 0, 1},
+    };
+}
+
+WDL_INLINE WDL_Mat4 wdl_m4_inv_ortho_projection(f32 left, f32 right, f32 top, f32 bottom, f32 far, f32 near) {
+    f32 x = (right - left) / 2.0f;
+    f32 y = (top - bottom) / 2.0f;
+    f32 z = (far - near) / -2.0f;
+
+    f32 x_off = (left+right) / 2.0f;
+    f32 y_off = (top+bottom) / 2.0f;
+    f32 z_off = -(far+near) / 2.0f;
+
+    return (WDL_Mat4) {
+        {x, 0, 0, x_off},
+        {0, y, 0, y_off},
+        {0, 0, z, z_off},
+        {0, 0, 0, 1},
+    };
+}
+
 // -- OS -----------------------------------------------------------------------
 
 WDLAPI void* wdl_os_reserve_memory(u32 size);
