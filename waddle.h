@@ -232,8 +232,8 @@ struct WDL_Vec4 {
     f32 x, y, z, w;
 };
 
-WDL_INLINE WDL_Vec4 vec4(f32 x, f32 y, f32 z, f32 w) { return (WDL_Vec4) {x, y, z, w}; }
-WDL_INLINE WDL_Vec4 vec4s(f32 scaler) { return (WDL_Vec4) {scaler, scaler, scaler, scaler}; }
+WDL_INLINE WDL_Vec4 wdl_v4(f32 x, f32 y, f32 z, f32 w) { return (WDL_Vec4) {x, y, z, w}; }
+WDL_INLINE WDL_Vec4 wdl_v4s(f32 scaler) { return (WDL_Vec4) {scaler, scaler, scaler, scaler}; }
 
 typedef struct WDL_Mat4 WDL_Mat4;
 struct WDL_Mat4 {
@@ -290,7 +290,6 @@ WDL_INLINE WDL_Mat4 wdl_m4_inv_ortho_projection(f32 left, f32 right, f32 top, f3
         {0, 0, 0, 1},
     };
 }
-
 // -- OS -----------------------------------------------------------------------
 
 WDLAPI void* wdl_os_reserve_memory(u32 size);
