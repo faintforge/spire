@@ -44,7 +44,7 @@
 
 #ifdef WDL_POSIX
 #define WDL_THREAD_LOCAL __thread
-#define WDL_INLINE __attribute__((always_inline))
+#define WDL_INLINE static inline __attribute__((always_inline))
 #endif // WDL_POSIX
 
 typedef unsigned char      u8;
@@ -186,43 +186,46 @@ struct WDL_Vec2 {
     f32 x, y;
 };
 
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2(f32 x, f32 y);
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2s(f32 scaler);
+WDL_INLINE WDL_Vec2 wdl_v2(f32 x, f32 y) { return (WDL_Vec2) {x, y}; }
+WDL_INLINE WDL_Vec2 wdl_v2s(f32 scaler) { return (WDL_Vec2) {scaler, scaler}; }
 
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_add(WDL_Vec2 a, WDL_Vec2 b);
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_sub(WDL_Vec2 a, WDL_Vec2 b);
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_mul(WDL_Vec2 a, WDL_Vec2 b);
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_div(WDL_Vec2 a, WDL_Vec2 b);
+WDL_INLINE WDL_Vec2 wdl_v2_add(WDL_Vec2 a, WDL_Vec2 b) { return wdl_v2(a.x + b.x, a.y + b.y); }
+WDL_INLINE WDL_Vec2 wdl_v2_sub(WDL_Vec2 a, WDL_Vec2 b) { return wdl_v2(a.x - b.x, a.y - b.y); }
+WDL_INLINE WDL_Vec2 wdl_v2_mul(WDL_Vec2 a, WDL_Vec2 b) { return wdl_v2(a.x * b.x, a.y * b.y); }
+WDL_INLINE WDL_Vec2 wdl_v2_div(WDL_Vec2 a, WDL_Vec2 b) { return wdl_v2(a.x / b.x, a.y / b.y); }
 
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_adds(WDL_Vec2 vec, f32 scaler);
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_subs(WDL_Vec2 vec, f32 scaler);
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_muls(WDL_Vec2 vec, f32 scaler);
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_divs(WDL_Vec2 vec, f32 scaler);
+WDL_INLINE WDL_Vec2 wdl_v2_adds(WDL_Vec2 vec, f32 scaler) { return wdl_v2(vec.x + scaler, vec.y + scaler); }
+WDL_INLINE WDL_Vec2 wdl_v2_subs(WDL_Vec2 vec, f32 scaler) { return wdl_v2(vec.x - scaler, vec.y - scaler); }
+WDL_INLINE WDL_Vec2 wdl_v2_muls(WDL_Vec2 vec, f32 scaler) { return wdl_v2(vec.x * scaler, vec.y * scaler); }
+WDL_INLINE WDL_Vec2 wdl_v2_divs(WDL_Vec2 vec, f32 scaler) { return wdl_v2(vec.x / scaler, vec.y / scaler); }
 
-WDLAPI WDL_INLINE f32      wdl_v2_magnitude_squared(WDL_Vec2 vec);
-WDLAPI WDL_INLINE f32      wdl_v2_magnitude(WDL_Vec2 vec);
-WDLAPI WDL_INLINE WDL_Vec2 wdl_v2_normalized(WDL_Vec2 vec);
+WDL_INLINE f32 wdl_v2_magnitude_squared(WDL_Vec2 vec) { return vec.x * vec.x + vec.y * vec.y; }
+WDL_INLINE f32 wdl_v2_magnitude(WDL_Vec2 vec) { return sqrtf(wdl_v2_magnitude_squared(vec)); }
+WDL_INLINE WDL_Vec2 wdl_v2_normalized(WDL_Vec2 vec) {
+    f32 inv_mag = 1.0f / wdl_v2_magnitude(vec);
+    return wdl_v2_muls(vec, inv_mag);
+}
 
 typedef struct WDL_Ivec2 WDL_Ivec2;
 struct WDL_Ivec2 {
     i32 x, y;
 };
 
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2(i32 x, i32 y);
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2s(i32 scaler);
+WDL_INLINE WDL_Ivec2 wdl_iv2(i32 x, i32 y) { return (WDL_Ivec2) {x, y}; }
+WDL_INLINE WDL_Ivec2 wdl_iv2s(i32 scaler) { return (WDL_Ivec2) {scaler, scaler}; }
 
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2_add(WDL_Ivec2 a, WDL_Ivec2 b);
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2_sub(WDL_Ivec2 a, WDL_Ivec2 b);
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2_mul(WDL_Ivec2 a, WDL_Ivec2 b);
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2_div(WDL_Ivec2 a, WDL_Ivec2 b);
+WDL_INLINE WDL_Ivec2 wdl_iv2_add(WDL_Ivec2 a, WDL_Ivec2 b) { return wdl_iv2(a.x + b.x, a.y + b.y); }
+WDL_INLINE WDL_Ivec2 wdl_iv2_sub(WDL_Ivec2 a, WDL_Ivec2 b) { return wdl_iv2(a.x - b.x, a.y - b.y); }
+WDL_INLINE WDL_Ivec2 wdl_iv2_mul(WDL_Ivec2 a, WDL_Ivec2 b) { return wdl_iv2(a.x * b.x, a.y * b.y); }
+WDL_INLINE WDL_Ivec2 wdl_iv2_div(WDL_Ivec2 a, WDL_Ivec2 b) { return wdl_iv2(a.x / b.x, a.y / b.y); }
 
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2_adds(WDL_Ivec2 vec, i32 scaler);
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2_subs(WDL_Ivec2 vec, i32 scaler);
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2_muls(WDL_Ivec2 vec, i32 scaler);
-WDLAPI WDL_INLINE WDL_Ivec2 wdl_iv2_divs(WDL_Ivec2 vec, i32 scaler);
+WDL_INLINE WDL_Ivec2 wdl_iv2_adds(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(vec.x + scaler, vec.y + scaler); }
+WDL_INLINE WDL_Ivec2 wdl_iv2_subs(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(vec.x - scaler, vec.y - scaler); }
+WDL_INLINE WDL_Ivec2 wdl_iv2_muls(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(vec.x * scaler, vec.y * scaler); }
+WDL_INLINE WDL_Ivec2 wdl_iv2_divs(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(vec.x / scaler, vec.y / scaler); }
 
-WDLAPI WDL_INLINE f32 wdl_iv2_magnitude_squared(WDL_Ivec2 vec);
-WDLAPI WDL_INLINE f32 wdl_iv2_magnitude(WDL_Ivec2 vec);
+WDL_INLINE f32 wdl_iv2_magnitude_squared(WDL_Ivec2 vec) { return vec.x * vec.x + vec.y * vec.y; }
+WDL_INLINE f32 wdl_iv2_magnitude(WDL_Ivec2 vec) { return sqrtf(wdl_iv2_magnitude_squared(vec)); }
 
 // -- OS -----------------------------------------------------------------------
 
@@ -481,50 +484,6 @@ char* wdl_str_to_cstr(WDL_Arena* arena, WDL_Str str)  {
     cstr[str.len] = 0;
     return cstr;
 }
-
-// -- Math ---------------------------------------------------------------------
-
-//
-// Vec2
-//
-inline WDL_Vec2 wdl_v2(f32 x, f32 y) { return (WDL_Vec2) {x, y}; }
-inline WDL_Vec2 wdl_v2s(f32 scaler) { return (WDL_Vec2) {scaler, scaler}; }
-
-inline WDL_Vec2 wdl_v2_add(WDL_Vec2 a, WDL_Vec2 b) { return wdl_v2(a.x + b.x, a.y + b.y); }
-inline WDL_Vec2 wdl_v2_sub(WDL_Vec2 a, WDL_Vec2 b) { return wdl_v2(a.x - b.x, a.y - b.y); }
-inline WDL_Vec2 wdl_v2_mul(WDL_Vec2 a, WDL_Vec2 b) { return wdl_v2(a.x * b.x, a.y * b.y); }
-inline WDL_Vec2 wdl_v2_div(WDL_Vec2 a, WDL_Vec2 b) { return wdl_v2(a.x / b.x, a.y / b.y); }
-
-inline WDL_Vec2 wdl_v2_adds(WDL_Vec2 vec, f32 scaler) { return wdl_v2(vec.x + scaler, vec.y + scaler); }
-inline WDL_Vec2 wdl_v2_subs(WDL_Vec2 vec, f32 scaler) { return wdl_v2(vec.x - scaler, vec.y - scaler); }
-inline WDL_Vec2 wdl_v2_muls(WDL_Vec2 vec, f32 scaler) { return wdl_v2(vec.x * scaler, vec.y * scaler); }
-inline WDL_Vec2 wdl_v2_divs(WDL_Vec2 vec, f32 scaler) { return wdl_v2(vec.x / scaler, vec.y / scaler); }
-
-inline f32 wdl_v2_magnitude_squared(WDL_Vec2 vec) { return vec.x * vec.x + vec.y * vec.y; }
-inline f32 wdl_v2_magnitude(WDL_Vec2 vec) { return sqrtf(wdl_v2_magnitude_squared(vec)); }
-inline WDL_Vec2 wdl_v2_normalized(WDL_Vec2 vec) {
-    f32 inv_mag = 1.0f / wdl_v2_magnitude(vec);
-    return wdl_v2_muls(vec, inv_mag);
-}
-
-//
-// Ivec2
-//
-inline WDL_Ivec2 wdl_iv2(i32 x, i32 y) { return (WDL_Ivec2) {x, y}; }
-inline WDL_Ivec2 wdl_iv2s(i32 scaler) { return (WDL_Ivec2) {scaler, scaler}; }
-
-inline WDL_Ivec2 wdl_iv2_add(WDL_Ivec2 a, WDL_Ivec2 b) { return wdl_iv2(a.x + b.x, a.y + b.y); }
-inline WDL_Ivec2 wdl_iv2_sub(WDL_Ivec2 a, WDL_Ivec2 b) { return wdl_iv2(a.x - b.x, a.y - b.y); }
-inline WDL_Ivec2 wdl_iv2_mul(WDL_Ivec2 a, WDL_Ivec2 b) { return wdl_iv2(a.x * b.x, a.y * b.y); }
-inline WDL_Ivec2 wdl_iv2_div(WDL_Ivec2 a, WDL_Ivec2 b) { return wdl_iv2(a.x / b.x, a.y / b.y); }
-
-inline WDL_Ivec2 wdl_iv2_adds(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(vec.x + scaler, vec.y + scaler); }
-inline WDL_Ivec2 wdl_iv2_subs(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(vec.x - scaler, vec.y - scaler); }
-inline WDL_Ivec2 wdl_iv2_muls(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(vec.x * scaler, vec.y * scaler); }
-inline WDL_Ivec2 wdl_iv2_divs(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(vec.x / scaler, vec.y / scaler); }
-
-inline f32 wdl_iv2_magnitude_squared(WDL_Ivec2 vec) { return vec.x * vec.x + vec.y * vec.y; }
-inline f32 wdl_iv2_magnitude(WDL_Ivec2 vec) { return sqrtf(wdl_iv2_magnitude_squared(vec)); }
 
 // -- OS -----------------------------------------------------------------------
 // Platform specific implementation
