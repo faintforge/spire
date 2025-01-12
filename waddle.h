@@ -44,7 +44,7 @@
 
 #ifdef WDL_POSIX
 #define WDL_THREAD_LOCAL __thread
-#define WDL_INLINE __attribute__((always_inline))
+#define WDL_INLINE inline __attribute__((always_inline))
 #endif // WDL_POSIX
 
 typedef unsigned char      u8;
