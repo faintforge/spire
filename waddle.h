@@ -178,6 +178,7 @@ struct WDL_Str {
 WDLAPI WDL_Str wdl_str(const u8* data, u32 len);
 WDLAPI u32     wdl_str_cstrlen(const u8* cstr);
 WDLAPI char*   wdl_str_to_cstr(WDL_Arena* arena, WDL_Str str);
+WDLAPI b8      wdl_str_equal(WDL_Str a, WDL_Str b);
 
 // -- Math ---------------------------------------------------------------------
 
@@ -550,6 +551,14 @@ char* wdl_str_to_cstr(WDL_Arena* arena, WDL_Str str)  {
     memcpy(cstr, str.data, str.len);
     cstr[str.len] = 0;
     return cstr;
+}
+
+b8 wdl_str_equal(WDL_Str a, WDL_Str b) {
+    if (a.len != b.len) {
+        return false;
+    }
+
+    return memcmp(a.data, b.data, a.len) == 0;
 }
 
 // -- OS -----------------------------------------------------------------------
