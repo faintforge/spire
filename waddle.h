@@ -379,27 +379,31 @@ void wdl_arena_set_align(WDL_Arena* arena, u8 align) {
 
 void* wdl_arena_push(WDL_Arena* arena, u64 size) {
     u8* ptr = wdl_arena_push_no_zero(arena, size);
-    for (u32 i = 0; i < size; i++) {
-        ptr[i] = 0;
-    }
-    // memset(ptr, 0, size);
+    memset(ptr, 0, size);
     return ptr;
+}
+
+static u64 _align_value(u64 value, u64 align) {
+    u64 aligned = value + align - 1;    // 32 + 8 - 1 = 39
+    u64 mod = aligned % align;          // 39 % 8 = 7
+    aligned = aligned - mod;            // 32
+    return aligned;
 }
 
 void* wdl_arena_push_no_zero(WDL_Arena* arena, u64 size) {
     u64 start_pos = arena->pos;
 
     u64 next_pos = arena->pos + size;
-    next_pos += arena->align - 1;
-    u64 offset = next_pos % arena->align;
-    u64 next_pos_aligned = next_pos - offset;
-    arena->pos += next_pos_aligned;
+    u64 next_pos_aligned = _align_value(next_pos, arena->align);
 
-    while (arena->pos >= arena->commit) {
-        arena->commit += wdl_os_get_page_size();
+    arena->pos = next_pos_aligned;
+
+    u64 aligned_pos = _align_value(arena->pos, wdl_os_get_page_size());
+    if (aligned_pos > arena->commit) {
+        arena->commit = aligned_pos;
         // TODO: Handle arena OOM state.
         // if (arena->commit > arena->capacity) {}
-        wdl_os_commit_memory(arena, arena->commit);
+        wdl_os_commit_memory(arena, aligned_pos);
     }
 
     return (u8*) arena + start_pos;
