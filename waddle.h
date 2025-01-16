@@ -1,4 +1,3 @@
-#include <math.h>
 #ifndef WADDLE_H_
 #define WADDLE_H_ 1
 
@@ -46,6 +45,8 @@
 #define WDL_THREAD_LOCAL __thread
 #define WDL_INLINE static inline __attribute__((always_inline))
 #endif // WDL_POSIX
+
+#include <math.h>
 
 typedef unsigned char      u8;
 typedef unsigned short     u16;
@@ -333,6 +334,11 @@ WDLAPI WDL_HashMap* wdl_hm_new(WDL_HashMapDesc desc);
         value; \
     })
 
+#define wdl_hm_getp(MAP, KEY) ({ \
+        __typeof__(KEY) _key = (KEY); \
+        _wdl_hash_map_getp_impl((MAP), &_key); \
+    })
+
 #define wdl_hm_has(MAP, KEY) ({ \
         __typeof__(KEY) _key = (KEY); \
         _wdl_hash_map_has_impl((MAP), &_key); \
@@ -399,11 +405,12 @@ WDLAPI b8  wdl_hm_helper_equal_generic(const void* a, const void* b, u64 len);
     })
 
 
-WDLAPI b8   _wdl_hash_map_insert_impl(WDL_HashMap* map, const void* key, const void* value);
-WDLAPI void _wdl_hash_map_set_impl(WDL_HashMap* map, const void* key, const void* value, void* out_prev_value);
-WDLAPI void _wdl_hash_map_get_impl(WDL_HashMap* map, const void* key, void* out_value);
-WDLAPI b8   _wdl_hash_map_has_impl(WDL_HashMap* map, const void* key);
-WDLAPI void _wdl_hash_map_remove_impl(WDL_HashMap* map, const void* key, void* out_value);
+WDLAPI b8    _wdl_hash_map_insert_impl(WDL_HashMap* map, const void* key, const void* value);
+WDLAPI void  _wdl_hash_map_set_impl(WDL_HashMap* map, const void* key, const void* value, void* out_prev_value);
+WDLAPI void  _wdl_hash_map_get_impl(WDL_HashMap* map, const void* key, void* out_value);
+WDLAPI void* _wdl_hash_map_getp_impl(WDL_HashMap* map, const void* key);
+WDLAPI b8    _wdl_hash_map_has_impl(WDL_HashMap* map, const void* key);
+WDLAPI void  _wdl_hash_map_remove_impl(WDL_HashMap* map, const void* key, void* out_value);
 
 // -- OS -----------------------------------------------------------------------
 
@@ -825,6 +832,23 @@ void _wdl_hash_map_get_impl(WDL_HashMap* map, const void* key, void* out_value) 
     }
 
     memset(out_value, 0, map->desc.value_size);
+}
+
+void* _wdl_hash_map_getp_impl(WDL_HashMap* map, const void* key) {
+    u64 hash = map->desc.hash(key, map->desc.key_size);
+    u32 index = hash % map->desc.capacity;
+
+    _WDL_HashMapBucket* bucket = &map->buckets[index];
+    if (bucket->state == _WDL_HASH_MAP_BUCKET_STATE_ALIVE) {
+        while (bucket != NULL) {
+            if (map->desc.equal(key, bucket->key, map->desc.key_size)) {
+                return bucket->value;
+            }
+            bucket = bucket->next;
+        }
+    }
+
+    return NULL;
 }
 
 b8 _wdl_hash_map_has_impl(WDL_HashMap* map, const void* key) {
