@@ -82,16 +82,16 @@ WDLAPI b8 wdl_terminate(void);
 
 // -- Misc ---------------------------------------------------------------------
 
-#define WDL_KB(V) ((u64) (V) << 10)
-#define WDL_MB(V) ((u64) (V) << 20)
-#define WDL_GB(V) ((u64) (V) << 30)
+#define wdl_kb(V) ((u64) (V) << 10)
+#define wdl_mb(V) ((u64) (V) << 20)
+#define wdl_gb(V) ((u64) (V) << 30)
 
-#define WDL_MIN(A, B) ((A) > (B) ? (B) : (A))
-#define WDL_MAX(A, B) ((A) > (B) ? (A) : (B))
-#define WDL_CLAMP(V, MIN, MAX) ((V) < (MIN) ? (MIN) : (V) > (MAX) ? (MAX) : (V))
+#define wdl_min(A, B) ((A) > (B) ? (B) : (A))
+#define wdl_max(A, B) ((A) > (B) ? (A) : (B))
+#define wdl_clamp(V, MIN, MAX) ((V) < (MIN) ? (MIN) : (V) > (MAX) ? (MAX) : (V))
 
-#define WDL_ARRLEN(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
-#define WDL_OFFSET(S, M) ((u64) &((S*) 0)->M)
+#define wdl_arrlen(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
+#define wdl_offset(S, M) ((u64) &((S*) 0)->M)
 
 WDLAPI u64 wdl_fvn1a_hash(const void* data, u64 len);
 
@@ -101,14 +101,14 @@ typedef struct WDL_Arena WDL_Arena;
 
 WDLAPI WDL_Arena* wdl_arena_create(void);
 WDLAPI WDL_Arena* wdl_arena_create_sized(u64 size);
-WDLAPI void         wdl_arena_destroy(WDL_Arena* arena);
-WDLAPI void         wdl_arena_set_align(WDL_Arena* arena, u8 align);
-WDLAPI void*        wdl_arena_push(WDL_Arena* arena, u64 size);
-WDLAPI void*        wdl_arena_push_no_zero(WDL_Arena* arena, u64 size);
-WDLAPI void         wdl_arena_pop(WDL_Arena* arena, u64 size);
-WDLAPI void         wdl_arena_pop_to(WDL_Arena* arena, u64 pos);
-WDLAPI void         wdl_arena_clear(WDL_Arena* arena);
-WDLAPI u64          wdl_arena_get_pos(WDL_Arena* arena);
+WDLAPI void       wdl_arena_destroy(WDL_Arena* arena);
+WDLAPI void       wdl_arena_set_align(WDL_Arena* arena, u8 align);
+WDLAPI void*      wdl_arena_push(WDL_Arena* arena, u64 size);
+WDLAPI void*      wdl_arena_push_no_zero(WDL_Arena* arena, u64 size);
+WDLAPI void       wdl_arena_pop(WDL_Arena* arena, u64 size);
+WDLAPI void       wdl_arena_pop_to(WDL_Arena* arena, u64 pos);
+WDLAPI void       wdl_arena_clear(WDL_Arena* arena);
+WDLAPI u64        wdl_arena_get_pos(WDL_Arena* arena);
 
 typedef struct WDL_Temp WDL_Temp;
 struct WDL_Temp {
@@ -147,12 +147,12 @@ typedef enum WDL_LogLevel {
     WDL_LOG_LEVEL_COUNT,
 } WDL_LogLevel;
 
-#define WDL_FATAL(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_FATAL, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define WDL_ERROR(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_ERROR, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define WDL_WARN(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_WARN, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define WDL_INFO(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_INFO, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define WDL_DEBUG(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_DEBUG, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define WDL_TRACE(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_TRACE, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define wdl_fatal(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_FATAL, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define wdl_error(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_ERROR, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define wdl_warn(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_WARN, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define wdl_info(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_INFO, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define wdl_debug(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_DEBUG, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define wdl_trace(MSG, ...) _wdl_log_internal(WDL_LOG_LEVEL_TRACE, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
 
 WDLAPI void _wdl_log_internal(WDL_LogLevel level, const char* file, u32 line, const char* msg, ...);
 
@@ -174,8 +174,8 @@ struct WDL_Str {
     u32 len;
 };
 
-#define WDL_STR_LIT(STR_LIT) wdl_str((const u8*) (STR_LIT), sizeof(STR_LIT) - 1)
-#define WDL_CSTR(CSTR) wdl_str((const u8*) (CSTR), wdl_str_cstrlen((const u8*) (CSTR)))
+#define wdl_str_lit(STR_LIT) wdl_str((const u8*) (STR_LIT), sizeof(STR_LIT) - 1)
+#define wdl_cstr(CSTR) wdl_str((const u8*) (CSTR), wdl_str_cstrlen((const u8*) (CSTR)))
 
 WDLAPI WDL_Str wdl_str(const u8* data, u32 len);
 WDLAPI u32     wdl_str_cstrlen(const u8* cstr);
@@ -450,7 +450,7 @@ struct WDL_Arena {
 };
 
 WDL_Arena* wdl_arena_create(void) {
-    return wdl_arena_create_sized(WDL_GB(1));
+    return wdl_arena_create_sized(wdl_gb(1));
 }
 
 WDL_Arena* wdl_arena_create_sized(u64 capacity) {
@@ -507,11 +507,11 @@ void* wdl_arena_push_no_zero(WDL_Arena* arena, u64 size) {
 }
 
 void wdl_arena_pop(WDL_Arena* arena, u64 size) {
-    arena->pos = WDL_MAX(arena->pos - size, sizeof(WDL_Arena));
+    arena->pos = wdl_max(arena->pos - size, sizeof(WDL_Arena));
 }
 
 void wdl_arena_pop_to(WDL_Arena* arena, u64 pos) {
-    arena->pos = WDL_MAX(pos, sizeof(WDL_Arena));
+    arena->pos = wdl_max(pos, sizeof(WDL_Arena));
 }
 
 void wdl_arena_clear(WDL_Arena* arena) {
@@ -560,7 +560,7 @@ WDL_ThreadCtx* wdl_thread_ctx_create(void) {
 void wdl_thread_ctx_destroy(WDL_ThreadCtx* ctx) {
     // Destroy the arenas in reverse order since the thread context lives on
     // the first arena.
-    for (i32 i = WDL_ARRLEN(ctx->scratch_arenas) - 1; i >= 0; i--) {
+    for (i32 i = wdl_arrlen(ctx->scratch_arenas) - 1; i >= 0; i--) {
         wdl_arena_destroy(ctx->scratch_arenas[i]);
     }
 }
@@ -581,7 +581,7 @@ static WDL_Arena* get_non_conflicting_scratch_arena(WDL_Arena* const* conflicts,
     }
 
     for (u32 i = 0; i < count; i++) {
-        for (u32 j = 0; j < WDL_ARRLEN(_wdl_thread_ctx->scratch_arenas); j++) {
+        for (u32 j = 0; j < wdl_arrlen(_wdl_thread_ctx->scratch_arenas); j++) {
             if (conflicts[i] != _wdl_thread_ctx->scratch_arenas[j]) {
                 return _wdl_thread_ctx->scratch_arenas[j];
             }
@@ -671,8 +671,8 @@ struct _WDL_HashMapBucket {
     _WDL_HashMapBucket* prev;
     _WDL_HashMapBucketState state;
 
-    WDL_Str* key;
-    u32* value;
+    void* key;
+    void* value;
 };
 
 struct WDL_HashMap {
