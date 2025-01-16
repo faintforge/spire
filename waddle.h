@@ -93,6 +93,8 @@ WDLAPI b8 wdl_terminate(void);
 #define WDL_ARRLEN(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
 #define WDL_OFFSET(S, M) ((u64) &((S*) 0)->M)
 
+WDLAPI u64 wdl_fvn1a_hash(const void* data, u64 len);
+
 // -- Arena --------------------------------------------------------------------
 
 typedef struct WDL_Arena WDL_Arena;
@@ -291,6 +293,88 @@ WDL_INLINE WDL_Mat4 wdl_m4_inv_ortho_projection(f32 left, f32 right, f32 top, f3
         {0, 0, 0, 1},
     };
 }
+
+// -- Hash map -----------------------------------------------------------------
+
+typedef struct WDL_HashMap WDL_HashMap;
+
+typedef struct WDL_HashMapDesc WDL_HashMapDesc;
+struct WDL_HashMapDesc {
+    WDL_Arena* arena;
+    u32 capacity;
+
+    u64 (*hash)(const void* key, u64 size);
+    b8 (*equal)(const void* a, const void* b, u64 size);
+
+    u64 key_size;
+    u64 value_size;
+};
+
+WDLAPI WDL_HashMap* wdl_hm_new(WDL_HashMapDesc desc);
+
+#define wdl_hm_insert(MAP, KEY, VALUE) ({ \
+        __typeof__(KEY) _key = (KEY); \
+        __typeof__(VALUE) _value = (VALUE); \
+        _wdl_hash_map_insert_impl((MAP), &_key, &_value); \
+    })
+
+#define wdl_hm_set(MAP, KEY, VALUE, VALUE_TYPE) ({ \
+        __typeof__(KEY) _key = (KEY); \
+        VALUE_TYPE _value = (VALUE); \
+        VALUE_TYPE prev_value; \
+        _wdl_hash_map_set_impl((MAP), &_key, &_value, &prev_value); \
+        prev_value; \
+    })
+
+#define wdl_hm_get(MAP, KEY, VALUE_TYPE) ({ \
+        __typeof__(KEY) _key = (KEY); \
+        VALUE_TYPE value; \
+        _wdl_hash_map_get_impl((MAP), &_key, &value); \
+        value; \
+    })
+
+#define wdl_hm_has(MAP, KEY) ({ \
+        __typeof__(KEY) _key = (KEY); \
+        _wdl_hash_map_has_impl((MAP), &_key); \
+    })
+
+#define wdl_hm_remove(MAP, KEY, VALUE_TYPE) ({ \
+        __typeof__(KEY) _key = (KEY); \
+        VALUE_TYPE value; \
+        _wdl_hash_map_remove_impl((MAP), &_key, &value); \
+        value; \
+    })
+
+// Helper functions
+WDLAPI u64 wdl_hm_helper_hash_str(const void* key, u64 size);
+WDLAPI b8  wdl_hm_helper_equal_str(const void* a, const void* b, u64 len);
+WDLAPI b8  wdl_hm_helper_equal_generic(const void* a, const void* b, u64 len);
+
+#define wdl_hm_desc_generic(ARENA, CAPACITY, KEY_TYPE, VALUE_TYPE) ((WDL_HashMapDesc) { \
+        .arena = (ARENA), \
+        .capacity = (CAPACITY), \
+        .hash = wdl_fvn1a_hash, \
+        .equal = wdl_hm_helper_equal_generic, \
+        .key_size = sizeof(KEY_TYPE), \
+        .value_size = sizeof(VALUE_TYPE), \
+    })
+
+#define wdl_hm_desc_str(ARENA, CAPACITY, VALUE_TYPE) ((WDL_HashMapDesc) { \
+        .arena = (ARENA), \
+        .capacity = (CAPACITY), \
+        .hash = wdl_hm_helper_hash_str, \
+        .equal = wdl_hm_helper_equal_str, \
+        .key_size = sizeof(WDL_Str), \
+        .value_size = sizeof(VALUE_TYPE), \
+    })
+
+
+WDLAPI b8   _wdl_hash_map_insert_impl(WDL_HashMap* map, const void* key, const void* value);
+WDLAPI void _wdl_hash_map_set_impl(WDL_HashMap* map, const void* key, const void* value, void* out_prev_value);
+WDLAPI void _wdl_hash_map_get_impl(WDL_HashMap* map, const void* key, void* out_value);
+WDLAPI b8   _wdl_hash_map_has_impl(WDL_HashMap* map, const void* key);
+WDLAPI void _wdl_hash_map_remove_impl(WDL_HashMap* map, const void* key, void* out_value);
+
 // -- OS -----------------------------------------------------------------------
 
 WDLAPI void* wdl_os_reserve_memory(u32 size);
@@ -342,6 +426,18 @@ b8 wdl_terminate(void) {
     wdl_thread_ctx_set(NULL);
     wdl_thread_ctx_destroy(_wdl_state.main_ctx);
     return true;
+}
+
+// -- Misc ---------------------------------------------------------------------
+
+u64 wdl_fvn1a_hash(const void* data, u64 len) {
+    const u8* _data = data;
+    u64 hash = 2166136261u;
+    for (u64 i = 0; i < len; i++) {
+        hash ^= *(_data + i);
+        hash *= 16777619;
+    }
+    return hash;
 }
 
 // -- Arena --------------------------------------------------------------------
@@ -559,6 +655,211 @@ b8 wdl_str_equal(WDL_Str a, WDL_Str b) {
     }
 
     return memcmp(a.data, b.data, a.len) == 0;
+}
+
+// -- Hash map -----------------------------------------------------------------
+
+typedef enum _WDL_HashMapBucketState : u8 {
+    _WDL_HASH_MAP_BUCKET_STATE_EMPTY,
+    _WDL_HASH_MAP_BUCKET_STATE_ALIVE,
+    _WDL_HASH_MAP_BUCKET_STATE_DEAD,
+} _WDL_HashMapBucketState;
+
+typedef struct _WDL_HashMapBucket _WDL_HashMapBucket;
+struct _WDL_HashMapBucket {
+    _WDL_HashMapBucket* next;
+    _WDL_HashMapBucket* prev;
+    _WDL_HashMapBucketState state;
+
+    WDL_Str* key;
+    u32* value;
+};
+
+struct WDL_HashMap {
+    WDL_HashMapDesc desc;
+    _WDL_HashMapBucket* buckets;
+};
+
+WDL_HashMap* wdl_hm_new(WDL_HashMapDesc desc) {
+    WDL_HashMap* map = wdl_arena_push_no_zero(desc.arena, sizeof(WDL_HashMap));
+    *map = (WDL_HashMap) {
+        .desc = desc,
+        .buckets = wdl_arena_push(desc.arena, desc.capacity * sizeof(_WDL_HashMapBucket)),
+    };
+    return map;
+}
+
+b8 _wdl_hash_map_insert_impl(WDL_HashMap* map, const void* key, const void* value) {
+    u64 hash = map->desc.hash(key, map->desc.key_size);
+    u32 index = hash % map->desc.capacity;
+
+    _WDL_HashMapBucket* bucket = &map->buckets[index];
+    if (bucket->state != _WDL_HASH_MAP_BUCKET_STATE_ALIVE) {
+        if (bucket->state == _WDL_HASH_MAP_BUCKET_STATE_EMPTY) {
+            *bucket = (_WDL_HashMapBucket) {
+                .key = wdl_arena_push_no_zero(map->desc.arena, map->desc.key_size),
+                .value = wdl_arena_push_no_zero(map->desc.arena, map->desc.value_size),
+            };
+        }
+        bucket->state = _WDL_HASH_MAP_BUCKET_STATE_ALIVE,
+        memcpy(bucket->key, key, map->desc.key_size);
+    } else {
+        b8 bucket_found = map->desc.equal(key, bucket->key, map->desc.key_size);
+        while (!bucket_found && bucket->next != NULL) {
+            bucket = bucket->next;
+            if (map->desc.equal(key, bucket->key, map->desc.key_size)) {
+                return false;
+            }
+        }
+
+        _WDL_HashMapBucket* new_bucket = wdl_arena_push_no_zero(map->desc.arena, sizeof(_WDL_HashMapBucket));
+        *new_bucket = (_WDL_HashMapBucket) {
+            .state = _WDL_HASH_MAP_BUCKET_STATE_ALIVE,
+            .key = wdl_arena_push_no_zero(map->desc.arena, map->desc.key_size),
+            .value = wdl_arena_push_no_zero(map->desc.arena, map->desc.value_size),
+        };
+        memcpy(new_bucket->key, key, map->desc.key_size);
+        bucket->next = new_bucket;
+        new_bucket->prev = bucket;
+        bucket = new_bucket;
+    }
+
+    memcpy(bucket->value, value, map->desc.value_size);
+    return true;
+}
+
+void _wdl_hash_map_set_impl(WDL_HashMap* map, const void* key, const void* value, void* out_prev_value) {
+    u64 hash = map->desc.hash(key, map->desc.key_size);
+    u32 index = hash % map->desc.capacity;
+
+    _WDL_HashMapBucket* bucket = &map->buckets[index];
+    b8 new_key = true;
+    if (bucket->state != _WDL_HASH_MAP_BUCKET_STATE_ALIVE) {
+        if (bucket->state == _WDL_HASH_MAP_BUCKET_STATE_EMPTY) {
+            *bucket = (_WDL_HashMapBucket) {
+                .key = wdl_arena_push_no_zero(map->desc.arena, map->desc.key_size),
+                .value = wdl_arena_push_no_zero(map->desc.arena, map->desc.value_size),
+            };
+        }
+        bucket->state = _WDL_HASH_MAP_BUCKET_STATE_ALIVE,
+        memcpy(bucket->key, key, map->desc.key_size);
+    } else {
+        b8 bucket_found = map->desc.equal(key, bucket->key, map->desc.key_size);
+        while (!bucket_found && bucket->next != NULL) {
+            bucket = bucket->next;
+            if (map->desc.equal(key, bucket->key, map->desc.key_size)) {
+                bucket_found = true;
+                new_key = false;
+                break;
+            }
+        }
+
+        if (!bucket_found) {
+            _WDL_HashMapBucket* new_bucket = wdl_arena_push_no_zero(map->desc.arena, sizeof(_WDL_HashMapBucket));
+            *new_bucket = (_WDL_HashMapBucket) {
+                .state = _WDL_HASH_MAP_BUCKET_STATE_ALIVE,
+                .key = wdl_arena_push_no_zero(map->desc.arena, map->desc.key_size),
+                .value = wdl_arena_push_no_zero(map->desc.arena, map->desc.value_size),
+            };
+            memcpy(new_bucket->key, key, map->desc.key_size);
+            new_bucket->prev = bucket;
+            bucket->next = new_bucket;
+            bucket = new_bucket;
+        }
+    }
+
+    if (out_prev_value != NULL) {
+        if (!new_key) {
+            memcpy(out_prev_value, bucket->value, map->desc.value_size);
+        } else {
+            memset(out_prev_value, 0, map->desc.value_size);
+        }
+    }
+
+    memcpy(bucket->value, value, map->desc.value_size);
+}
+
+void _wdl_hash_map_get_impl(WDL_HashMap* map, const void* key, void* out_value) {
+    u64 hash = map->desc.hash(key, map->desc.key_size);
+    u32 index = hash % map->desc.capacity;
+
+    _WDL_HashMapBucket* bucket = &map->buckets[index];
+    if (bucket->state == _WDL_HASH_MAP_BUCKET_STATE_ALIVE) {
+        while (bucket != NULL) {
+            if (map->desc.equal(key, bucket->key, map->desc.key_size)) {
+                memcpy(out_value, bucket->value, map->desc.value_size);
+                return;
+            }
+            bucket = bucket->next;
+        }
+    }
+
+    memset(out_value, 0, map->desc.value_size);
+}
+
+b8 _wdl_hash_map_has_impl(WDL_HashMap* map, const void* key) {
+    u64 hash = map->desc.hash(key, map->desc.key_size);
+    u32 index = hash % map->desc.capacity;
+
+    _WDL_HashMapBucket* bucket = &map->buckets[index];
+    if (bucket->state == _WDL_HASH_MAP_BUCKET_STATE_ALIVE) {
+        while (bucket != NULL) {
+            if (map->desc.equal(key, bucket->key, map->desc.key_size)) {
+                return true;
+            }
+            bucket = bucket->next;
+        }
+    }
+    return false;
+}
+
+void _wdl_hash_map_remove_impl(WDL_HashMap* map, const void* key, void* out_value) {
+    u64 hash = map->desc.hash(key, map->desc.key_size);
+    u32 index = hash % map->desc.capacity;
+
+    _WDL_HashMapBucket* bucket = &map->buckets[index];
+    if (bucket->state == _WDL_HASH_MAP_BUCKET_STATE_ALIVE) {
+        while (bucket != NULL) {
+            if (map->desc.equal(key, bucket->key, map->desc.key_size)) {
+                memcpy(out_value, bucket->value, map->desc.value_size);
+                if (bucket->prev != NULL) {
+                    bucket->prev->next = bucket->next;
+                } else {
+                    // Start of the chain.
+                    if (bucket->next == NULL) {
+                        bucket->state = _WDL_HASH_MAP_BUCKET_STATE_DEAD;
+                    } else {
+                        if (bucket->next->next != NULL) {
+                            bucket->next->next->prev = bucket;
+                        }
+                        *bucket = *bucket->next;
+                        bucket->prev = NULL;
+                    }
+                }
+                return;
+            }
+            bucket = bucket->next;
+        }
+    }
+}
+
+// Helper functions
+
+u64 wdl_hm_helper_hash_str(const void* key, u64 size) {
+    (void) size;
+    const WDL_Str* _key = key;
+    return wdl_fvn1a_hash(_key->data, _key->len);
+}
+
+b8 wdl_hm_helper_equal_str(const void* a, const void* b, u64 len) {
+    (void) len;
+    const WDL_Str* _a = a;
+    const WDL_Str* _b = b;
+    return wdl_str_equal(*_a, *_b);
+}
+
+b8 wdl_hm_helper_equal_generic(const void* a, const void* b, u64 len) {
+    return memcmp(a, b, len) == 0;
 }
 
 // -- OS -----------------------------------------------------------------------
