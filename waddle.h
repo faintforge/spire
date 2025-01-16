@@ -46,7 +46,12 @@
 #define WDL_INLINE static inline __attribute__((always_inline))
 #endif // WDL_POSIX
 
+#ifndef NDEBUG
+#define WDL_DEBUG
+#endif // NDEBUG
+
 #include <math.h>
+#include <stdlib.h>
 
 typedef unsigned char      u8;
 typedef unsigned short     u16;
@@ -81,7 +86,7 @@ typedef u32 b32;
 WDLAPI b8 wdl_init(void);
 WDLAPI b8 wdl_terminate(void);
 
-// -- Misc ---------------------------------------------------------------------
+// -- Utils --------------------------------------------------------------------
 
 #define wdl_kb(V) ((u64) (V) << 10)
 #define wdl_mb(V) ((u64) (V) << 20)
@@ -95,6 +100,17 @@ WDLAPI b8 wdl_terminate(void);
 #define wdl_offset(S, M) ((u64) &((S*) 0)->M)
 
 WDLAPI u64 wdl_fvn1a_hash(const void* data, u64 len);
+
+#ifdef WDL_DEBUG
+#define wdl_assert(COND, MSG, ...) do { \
+    if (!(COND)) {\
+        wdl_fatal(MSG, ##__VA_ARGS__); \
+        abort(); \
+    } \
+} while (0)
+#else // WDL_DEBUG
+#define wdl_asswdl_assert(cond, msg, ...)
+#endif // WDL_DEBUG
 
 // -- Arena --------------------------------------------------------------------
 
@@ -314,20 +330,44 @@ struct WDL_HashMapDesc {
 WDLAPI WDL_HashMap* wdl_hm_new(WDL_HashMapDesc desc);
 
 #define wdl_hm_insert(MAP, KEY, VALUE) ({ \
+        wdl_assert(sizeof(__typeof__(KEY)) == wdl_hm_get_key_size(MAP), \
+                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
+                wdl_hm_get_key_size(MAP), \
+                sizeof(__typeof__(KEY))); \
+        wdl_assert(sizeof(__typeof__(VALUE)) == wdl_hm_get_value_size(MAP), \
+                "Hash map value size does not match with the size of the provided value. Expected %llu got %llu.", \
+                wdl_hm_get_value_size(MAP), \
+                sizeof(__typeof__(VALUE))); \
         __typeof__(KEY) _key = (KEY); \
         __typeof__(VALUE) _value = (VALUE); \
         _wdl_hash_map_insert_impl((MAP), &_key, &_value); \
     })
 
-#define wdl_hm_set(MAP, KEY, VALUE, VALUE_TYPE) ({ \
+#define wdl_hm_set(MAP, KEY, VALUE) ({ \
+        wdl_assert(sizeof(__typeof__(KEY)) == wdl_hm_get_key_size(MAP), \
+                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
+                wdl_hm_get_key_size(MAP), \
+                sizeof(__typeof__(KEY))); \
+        wdl_assert(sizeof(__typeof__(VALUE)) == wdl_hm_get_value_size(MAP), \
+                "Hash map value size does not match with the size of the provided value. Expected %llu got %llu.", \
+                wdl_hm_get_value_size(MAP), \
+                sizeof(__typeof__(VALUE))); \
         __typeof__(KEY) _key = (KEY); \
-        VALUE_TYPE _value = (VALUE); \
-        VALUE_TYPE prev_value; \
+        __typeof__(VALUE) _value = (VALUE); \
+        __typeof__(VALUE) prev_value; \
         _wdl_hash_map_set_impl((MAP), &_key, &_value, &prev_value); \
         prev_value; \
     })
 
 #define wdl_hm_get(MAP, KEY, VALUE_TYPE) ({ \
+        wdl_assert(sizeof(__typeof__(KEY)) == wdl_hm_get_key_size(MAP), \
+                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
+                wdl_hm_get_key_size(MAP), \
+                sizeof(__typeof__(KEY))); \
+        wdl_assert(sizeof(VALUE_TYPE) == wdl_hm_get_value_size(MAP), \
+                "Hash map value size does not match with the size of the provided value type. Expected %llu got %llu.", \
+                wdl_hm_get_value_size(MAP), \
+                sizeof(VALUE_TYPE)); \
         __typeof__(KEY) _key = (KEY); \
         VALUE_TYPE value; \
         _wdl_hash_map_get_impl((MAP), &_key, &value); \
@@ -335,21 +375,40 @@ WDLAPI WDL_HashMap* wdl_hm_new(WDL_HashMapDesc desc);
     })
 
 #define wdl_hm_getp(MAP, KEY) ({ \
+        wdl_assert(sizeof(__typeof__(KEY)) == wdl_hm_get_key_size(MAP), \
+                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
+                wdl_hm_get_key_size(MAP), \
+                sizeof(__typeof__(KEY))); \
         __typeof__(KEY) _key = (KEY); \
         _wdl_hash_map_getp_impl((MAP), &_key); \
     })
 
 #define wdl_hm_has(MAP, KEY) ({ \
+        wdl_assert(sizeof(__typeof__(KEY)) == wdl_hm_get_key_size(MAP), \
+                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
+                wdl_hm_get_key_size(MAP), \
+                sizeof(__typeof__(KEY))); \
         __typeof__(KEY) _key = (KEY); \
         _wdl_hash_map_has_impl((MAP), &_key); \
     })
 
 #define wdl_hm_remove(MAP, KEY, VALUE_TYPE) ({ \
+        wdl_assert(sizeof(__typeof__(KEY)) == wdl_hm_get_key_size(MAP), \
+                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
+                wdl_hm_get_key_size(MAP), \
+                sizeof(__typeof__(KEY))); \
+        wdl_assert(sizeof(VALUE_TYPE) == wdl_hm_get_value_size(MAP), \
+                "Hash map value size does not match with the size of the provided value type. Expected %llu got %llu.", \
+                wdl_hm_get_value_size(MAP), \
+                sizeof(VALUE_TYPE)); \
         __typeof__(KEY) _key = (KEY); \
         VALUE_TYPE value; \
         _wdl_hash_map_remove_impl((MAP), &_key, &value); \
         value; \
     })
+
+WDLAPI u64 wdl_hm_get_value_size(const WDL_HashMap* map);
+WDLAPI u64 wdl_hm_get_key_size(const WDL_HashMap* map);
 
 // Iteration
 typedef struct WDL_HashMapIter WDL_HashMapIter;
@@ -379,7 +438,6 @@ WDLAPI void*           wdl_hm_iter_get_valuep(WDL_HashMapIter iter);
 
 WDLAPI void _wdl_hm_iter_get_key_impl(WDL_HashMapIter iter, void* out_value);
 WDLAPI void _wdl_hm_iter_get_value_impl(WDL_HashMapIter iter, void* out_value);
-
 
 // Helper functions
 WDLAPI u64 wdl_hm_helper_hash_str(const void* key, u64 size);
@@ -465,7 +523,7 @@ b8 wdl_terminate(void) {
     return true;
 }
 
-// -- Misc ---------------------------------------------------------------------
+// -- Utils --------------------------------------------------------------------
 
 u64 wdl_fvn1a_hash(const void* data, u64 len) {
     const u8* _data = data;
@@ -965,6 +1023,13 @@ void _wdl_hm_iter_get_value_impl(WDL_HashMapIter iter, void* out_value) {
     memcpy(out_value, bucket->value, iter.map->desc.value_size);
 }
 
+u64 wdl_hm_get_key_size(const WDL_HashMap* map) {
+    return map->desc.key_size;
+}
+
+u64 wdl_hm_get_value_size(const WDL_HashMap* map) {
+    return map->desc.value_size;
+}
 
 // Helper functions
 
