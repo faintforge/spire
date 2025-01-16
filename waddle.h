@@ -345,6 +345,36 @@ WDLAPI WDL_HashMap* wdl_hm_new(WDL_HashMapDesc desc);
         value; \
     })
 
+// Iteration
+typedef struct WDL_HashMapIter WDL_HashMapIter;
+struct WDL_HashMapIter {
+    WDL_HashMap* map;
+    void* bucket;
+    u32 index;
+};
+
+WDLAPI WDL_HashMapIter wdl_hm_iter_new(WDL_HashMap* map);
+WDLAPI b8              wdl_hm_iter_valid(WDL_HashMapIter iter);
+WDLAPI WDL_HashMapIter wdl_hm_iter_next(WDL_HashMapIter iter);
+WDLAPI void*           wdl_hm_iter_get_keyp(WDL_HashMapIter iter);
+WDLAPI void*           wdl_hm_iter_get_valuep(WDL_HashMapIter iter);
+
+#define wdl_hm_iter_get_key(ITER, KEY_TYPE) ({ \
+        KEY_TYPE result; \
+        _wdl_hm_iter_get_key_impl((ITER), &result); \
+        result; \
+    })
+
+#define wdl_hm_iter_get_value(ITER, VALUE_TYPE) ({ \
+        VALUE_TYPE result; \
+        _wdl_hm_iter_get_value_impl((ITER), &result); \
+        result; \
+    })
+
+WDLAPI void _wdl_hm_iter_get_key_impl(WDL_HashMapIter iter, void* out_value);
+WDLAPI void _wdl_hm_iter_get_value_impl(WDL_HashMapIter iter, void* out_value);
+
+
 // Helper functions
 WDLAPI u64 wdl_hm_helper_hash_str(const void* key, u64 size);
 WDLAPI b8  wdl_hm_helper_equal_str(const void* a, const void* b, u64 len);
@@ -842,6 +872,75 @@ void _wdl_hash_map_remove_impl(WDL_HashMap* map, const void* key, void* out_valu
         }
     }
 }
+
+// Iteration
+
+WDL_HashMapIter wdl_hm_iter_new(WDL_HashMap* map) {
+    WDL_HashMapIter iter = {
+        .map = map,
+    };
+
+    u32 idx = 0;
+    _WDL_HashMapBucket* bucket;
+    while (idx < map->desc.capacity) {
+        bucket = &map->buckets[idx];
+        if (bucket->state == _WDL_HASH_MAP_BUCKET_STATE_ALIVE) {
+            break;
+        }
+        idx++;
+    }
+
+    iter.index = idx;
+    iter.bucket = bucket;
+
+    return iter;
+}
+
+b8 wdl_hm_iter_valid(WDL_HashMapIter iter) {
+    return iter.index < iter.map->desc.capacity;
+}
+
+WDL_HashMapIter wdl_hm_iter_next(WDL_HashMapIter iter) {
+    _WDL_HashMapBucket* bucket = iter.bucket;
+    if (bucket->next != NULL) {
+        iter.bucket = bucket->next;
+        return iter;
+    }
+
+    u32 idx = iter.index + 1;
+    while (idx < iter.map->desc.capacity) {
+        bucket = &iter.map->buckets[idx];
+        if (bucket->state == _WDL_HASH_MAP_BUCKET_STATE_ALIVE) {
+            break;
+        }
+        idx++;
+    }
+    iter.index = idx;
+    iter.bucket = bucket;
+
+    return iter;
+}
+
+void* wdl_hm_iter_get_keyp(WDL_HashMapIter iter) {
+    _WDL_HashMapBucket* bucket = iter.bucket;
+    return bucket->key;
+}
+
+void* wdl_hm_iter_get_valuep(WDL_HashMapIter iter) {
+    _WDL_HashMapBucket* bucket = iter.bucket;
+    return bucket->value;
+}
+
+void _wdl_hm_iter_get_key_impl(WDL_HashMapIter iter, void* out_value) {
+    _WDL_HashMapBucket* bucket = iter.bucket;
+    memcpy(out_value, bucket->key, iter.map->desc.key_size);
+}
+
+void _wdl_hm_iter_get_value_impl(WDL_HashMapIter iter, void* out_value) {
+    _WDL_HashMapBucket* bucket = iter.bucket;
+    memcpy(out_value, bucket->value, iter.map->desc.value_size);
+}
+
 
 // Helper functions
 
