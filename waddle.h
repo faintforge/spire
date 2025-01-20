@@ -807,6 +807,10 @@ b8 _wdl_hash_map_insert_impl(WDL_HashMap* map, const void* key, const void* valu
             }
         }
 
+        if (bucket_found) {
+            return false;
+        }
+
         _WDL_HashMapBucket* new_bucket = wdl_arena_push_no_zero(map->desc.arena, sizeof(_WDL_HashMapBucket));
         *new_bucket = (_WDL_HashMapBucket) {
             .state = _WDL_HASH_MAP_BUCKET_STATE_ALIVE,
