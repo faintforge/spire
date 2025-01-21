@@ -492,7 +492,7 @@ WDLAPI void  _wdl_hash_map_remove_impl(WDL_HashMap* map, const void* key, void* 
 
 // -- OS -----------------------------------------------------------------------
 
-WDLAPI void* wdl_os_reserve_memory(u32 size);
+WDLAPI void* wdl_os_reserve_memory(u64 size);
 WDLAPI void  wdl_os_commit_memory(void* ptr, u64 size);
 WDLAPI void  wdl_os_decommit_memory(void* ptr, u64 size);
 WDLAPI void  wdl_os_release_memory(void* ptr, u64 size);
@@ -609,7 +609,6 @@ WDL_Arena* wdl_arena_create_configurable(WDL_ArenaDesc desc) {
     } else {
         wdl_os_commit_memory(arena, wdl_os_get_page_size());
     }
-    wdl_debug("%llu", desc.region_size);
 
     *arena = (WDL_Arena) {
         .desc = desc,
@@ -1151,7 +1150,7 @@ b8 _wdl_platform_termiante(void) {
     return true;
 }
 
-void* wdl_os_reserve_memory(u32 size) {
+void* wdl_os_reserve_memory(u64 size) {
     void* ptr = mmap(NULL, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return ptr;
 }
