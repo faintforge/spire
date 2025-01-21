@@ -83,7 +83,26 @@ typedef u32 b32;
 
 // -----------------------------------------------------------------------------
 
-WDLAPI b8 wdl_init(void);
+typedef struct WDL_ArenaDesc WDL_ArenaDesc;
+struct WDL_ArenaDesc {
+    // Size of one link in the linked list.
+    u64 region_size;
+    // Does the arena reserve virtual address space and incrementally commit it?
+    b8 virtual_memory;
+    // What is the alignment of the arena. Default is 8 on 64-bit systems and 4
+    // on 32-bit systems.
+    u64 alignment;
+    // Does the arena allocate a new node in a linked list when it runs out of
+    // memory?
+    b8 chaining;
+};
+
+typedef struct WDL_Config WDL_Config;
+struct WDL_Config {
+    WDL_ArenaDesc default_arena_desc;
+};
+
+WDLAPI b8 wdl_init(WDL_Config config);
 WDLAPI b8 wdl_terminate(void);
 
 // -- Utils --------------------------------------------------------------------
@@ -101,15 +120,17 @@ WDLAPI b8 wdl_terminate(void);
 
 WDLAPI u64 wdl_fvn1a_hash(const void* data, u64 len);
 
-#ifdef WDL_DEBUG
-#define wdl_assert(COND, MSG, ...) do { \
+#define wdl_ensure(COND, MSG, ...) do { \
     if (!(COND)) {\
         wdl_fatal(MSG, ##__VA_ARGS__); \
         abort(); \
     } \
 } while (0)
+
+#ifdef WDL_DEBUG
+#define wdl_assert(COND, MSG, ...) wdl_ensure(COND, MSG, ##__VA_ARGS__)
 #else // WDL_DEBUG
-#define wdl_asswdl_assert(cond, msg, ...)
+#define wdl_assert(cond, msg, ...)
 #endif // WDL_DEBUG
 
 // -- Arena --------------------------------------------------------------------
@@ -117,9 +138,8 @@ WDLAPI u64 wdl_fvn1a_hash(const void* data, u64 len);
 typedef struct WDL_Arena WDL_Arena;
 
 WDLAPI WDL_Arena* wdl_arena_create(void);
-WDLAPI WDL_Arena* wdl_arena_create_sized(u64 size);
+WDLAPI WDL_Arena* wdl_arena_create_configurable(WDL_ArenaDesc desc);
 WDLAPI void       wdl_arena_destroy(WDL_Arena* arena);
-WDLAPI void       wdl_arena_set_align(WDL_Arena* arena, u8 align);
 WDLAPI void*      wdl_arena_push(WDL_Arena* arena, u64 size);
 WDLAPI void*      wdl_arena_push_no_zero(WDL_Arena* arena, u64 size);
 WDLAPI void       wdl_arena_pop(WDL_Arena* arena, u64 size);
@@ -473,8 +493,9 @@ WDLAPI void  _wdl_hash_map_remove_impl(WDL_HashMap* map, const void* key, void* 
 // -- OS -----------------------------------------------------------------------
 
 WDLAPI void* wdl_os_reserve_memory(u32 size);
-WDLAPI void  wdl_os_commit_memory(void* ptr, u32 size);
-WDLAPI void  wdl_os_release_memory(void* ptr, u32 size);
+WDLAPI void  wdl_os_commit_memory(void* ptr, u64 size);
+WDLAPI void  wdl_os_decommit_memory(void* ptr, u64 size);
+WDLAPI void  wdl_os_release_memory(void* ptr, u64 size);
 WDLAPI f32   wdl_os_get_time(void);
 WDLAPI u32   wdl_os_get_page_size(void);
 
@@ -499,16 +520,34 @@ static b8 _wdl_platform_termiante(void);
 
 typedef struct _WDL_State _WDL_State;
 struct _WDL_State {
+    WDL_Config cfg;
     _WDL_PlatformState *platform;
     WDL_ThreadCtx* main_ctx;
 };
 
 static _WDL_State _wdl_state = {0};
 
-b8 wdl_init(void) {
+static WDL_Config _config_set_defaults(WDL_Config config) {
+    if (config.default_arena_desc.region_size == 0) {
+        if (config.default_arena_desc.virtual_memory) {
+            config.default_arena_desc.region_size = wdl_gb(4);
+        } else {
+            config.default_arena_desc.region_size = wdl_mb(4);
+        }
+    }
+
+    if (config.default_arena_desc.alignment == 0) {
+        config.default_arena_desc.alignment = sizeof(void*);
+    }
+
+    return config;
+}
+
+b8 wdl_init(WDL_Config config) {
     if (!_wdl_platform_init()) {
         return false;
     }
+    _wdl_state.cfg = _config_set_defaults(config);
     _wdl_state.main_ctx = wdl_thread_ctx_create();
     wdl_thread_ctx_set(_wdl_state.main_ctx);
     return true;
@@ -537,42 +576,21 @@ u64 wdl_fvn1a_hash(const void* data, u64 len) {
 
 // -- Arena --------------------------------------------------------------------
 
+typedef struct _WDL_ArenaBlock _WDL_ArenaBlock;
+struct _WDL_ArenaBlock {
+    _WDL_ArenaBlock *next;
+    _WDL_ArenaBlock *prev;
+    void* memory;
+};
+
 struct WDL_Arena {
-    u64 capacity;
+    WDL_ArenaDesc desc;
     u64 commit;
     u64 pos;
-    u8 align;
 };
 
 WDL_Arena* wdl_arena_create(void) {
-    return wdl_arena_create_sized(wdl_gb(1));
-}
-
-WDL_Arena* wdl_arena_create_sized(u64 capacity) {
-    WDL_Arena* arena = wdl_os_reserve_memory(capacity);
-    wdl_os_commit_memory(arena, wdl_os_get_page_size());
-
-    *arena = (WDL_Arena) {
-        .commit = wdl_os_get_page_size(),
-        .align = sizeof(void*),
-        .capacity = capacity,
-        .pos = sizeof(WDL_Arena),
-    };
-    return arena;
-}
-
-void wdl_arena_destroy(WDL_Arena* arena) {
-    wdl_os_release_memory(arena, arena->capacity);
-}
-
-void wdl_arena_set_align(WDL_Arena* arena, u8 align) {
-    arena->align = align;
-}
-
-void* wdl_arena_push(WDL_Arena* arena, u64 size) {
-    u8* ptr = wdl_arena_push_no_zero(arena, size);
-    memset(ptr, 0, size);
-    return ptr;
+    return wdl_arena_create_configurable(_wdl_state.cfg.default_arena_desc);
 }
 
 static u64 _align_value(u64 value, u64 align) {
@@ -582,20 +600,58 @@ static u64 _align_value(u64 value, u64 align) {
     return aligned;
 }
 
+WDL_Arena* wdl_arena_create_configurable(WDL_ArenaDesc desc) {
+    u64 aligned_arena_size = _align_value(sizeof(WDL_Arena), desc.alignment);
+    desc.region_size += aligned_arena_size;
+    WDL_Arena* arena = wdl_os_reserve_memory(desc.region_size);
+    if (!desc.virtual_memory) {
+        wdl_os_commit_memory(arena, desc.region_size);
+    } else {
+        wdl_os_commit_memory(arena, wdl_os_get_page_size());
+    }
+    wdl_debug("%llu", desc.region_size);
+
+    *arena = (WDL_Arena) {
+        .desc = desc,
+        .commit = wdl_os_get_page_size(),
+        .pos = aligned_arena_size,
+    };
+    return arena;
+}
+
+void wdl_arena_destroy(WDL_Arena* arena) {
+    wdl_os_release_memory(arena, arena->desc.region_size);
+}
+
+void* wdl_arena_push(WDL_Arena* arena, u64 size) {
+    u8* ptr = wdl_arena_push_no_zero(arena, size);
+    memset(ptr, 0, size);
+    return ptr;
+}
+
 void* wdl_arena_push_no_zero(WDL_Arena* arena, u64 size) {
     u64 start_pos = arena->pos;
 
     u64 next_pos = arena->pos + size;
-    u64 next_pos_aligned = _align_value(next_pos, arena->align);
+    u64 next_pos_aligned = _align_value(next_pos, arena->desc.alignment);
 
     arena->pos = next_pos_aligned;
 
-    u64 aligned_pos = _align_value(arena->pos, wdl_os_get_page_size());
-    if (aligned_pos > arena->commit) {
-        arena->commit = aligned_pos;
-        // TODO: Handle arena OOM state.
-        // if (arena->commit > arena->capacity) {}
-        wdl_os_commit_memory(arena, aligned_pos);
+    if (arena->pos > arena->desc.region_size) {
+        // Crash on OOM if we can't grow.
+        if (!arena->desc.chaining) {
+            wdl_ensure(false, "Arena is out of memory.");
+        }
+
+        // TODO: Implement chaining.
+    }
+
+    if (arena->desc.virtual_memory) {
+        u64 page_aligned_pos = _align_value(arena->pos, wdl_os_get_page_size());
+        if (page_aligned_pos > arena->commit) {
+            arena->commit = page_aligned_pos;
+            wdl_os_commit_memory(arena, page_aligned_pos);
+        }
     }
 
     return (u8*) arena + start_pos;
@@ -1066,7 +1122,6 @@ b8 wdl_hm_helper_equal_generic(const void* a, const void* b, u64 len) {
 #include <dlfcn.h>
 
 struct _WDL_PlatformState {
-    u32 page_size;
     f32 start_time;
 };
 
@@ -1084,7 +1139,6 @@ b8 _wdl_platform_init(void) {
     wdl_os_commit_memory(platform, sizeof(_WDL_PlatformState));
 
     *platform = (_WDL_PlatformState) {
-        .page_size = getpagesize(),
         .start_time = _wdl_posix_time_stamp(),
     };
     _wdl_state.platform = platform;
@@ -1102,11 +1156,15 @@ void* wdl_os_reserve_memory(u32 size) {
     return ptr;
 }
 
-void  wdl_os_commit_memory(void* ptr, u32 size) {
+void  wdl_os_commit_memory(void* ptr, u64 size) {
     mprotect(ptr, size, PROT_READ | PROT_WRITE);
 }
 
-void  wdl_os_release_memory(void* ptr, u32 size) {
+void  wdl_os_decommit_memory(void* ptr, u64 size) {
+    mprotect(ptr, size, PROT_NONE);
+}
+
+void  wdl_os_release_memory(void* ptr, u64 size) {
     munmap(ptr, size);
 }
 
@@ -1115,7 +1173,7 @@ f32 wdl_os_get_time(void) {
 }
 
 u32 wdl_os_get_page_size(void) {
-    return _wdl_state.platform->page_size;
+    return getpagesize();
 }
 
 // -- Library ------------------------------------------------------------------
