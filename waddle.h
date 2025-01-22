@@ -85,8 +85,9 @@ typedef u32 b32;
 
 typedef struct WDL_ArenaDesc WDL_ArenaDesc;
 struct WDL_ArenaDesc {
-    // Size of one link in the linked list.
-    u64 region_size;
+    // Size of one block in the linked list. If chaining isn't enabled then it's
+    // the total size of the arena.
+    u64 block_size;
     // Does the arena reserve virtual address space and incrementally commit it?
     b8 virtual_memory;
     // What is the alignment of the arena. Default is 8 on 64-bit systems and 4
@@ -528,11 +529,11 @@ struct _WDL_State {
 static _WDL_State _wdl_state = {0};
 
 static WDL_Config _config_set_defaults(WDL_Config config) {
-    if (config.default_arena_desc.region_size == 0) {
+    if (config.default_arena_desc.block_size == 0) {
         if (config.default_arena_desc.virtual_memory) {
-            config.default_arena_desc.region_size = wdl_gb(4);
+            config.default_arena_desc.block_size = wdl_gb(4);
         } else {
-            config.default_arena_desc.region_size = wdl_mb(4);
+            config.default_arena_desc.block_size = wdl_mb(4);
         }
     }
 
@@ -580,18 +581,9 @@ typedef struct _WDL_ArenaBlock _WDL_ArenaBlock;
 struct _WDL_ArenaBlock {
     _WDL_ArenaBlock *next;
     _WDL_ArenaBlock *prev;
+    u64 commit;
     void* memory;
 };
-
-struct WDL_Arena {
-    WDL_ArenaDesc desc;
-    u64 commit;
-    u64 pos;
-};
-
-WDL_Arena* wdl_arena_create(void) {
-    return wdl_arena_create_configurable(_wdl_state.cfg.default_arena_desc);
-}
 
 static u64 _align_value(u64 value, u64 align) {
     u64 aligned = value + align - 1;    // 32 + 8 - 1 = 39
@@ -600,26 +592,49 @@ static u64 _align_value(u64 value, u64 align) {
     return aligned;
 }
 
-WDL_Arena* wdl_arena_create_configurable(WDL_ArenaDesc desc) {
-    u64 aligned_arena_size = _align_value(sizeof(WDL_Arena), desc.alignment);
-    desc.region_size += aligned_arena_size;
-    WDL_Arena* arena = wdl_os_reserve_memory(desc.region_size);
-    if (!desc.virtual_memory) {
-        wdl_os_commit_memory(arena, desc.region_size);
+static _WDL_ArenaBlock* _wdl_arena_block_alloc(u64 block_size, b8 virtual_memory) {
+    block_size += sizeof(_WDL_ArenaBlock);
+    _WDL_ArenaBlock* block = wdl_os_reserve_memory(block_size);
+    if (virtual_memory) {
+        wdl_os_commit_memory(block, wdl_os_get_page_size());
     } else {
-        wdl_os_commit_memory(arena, wdl_os_get_page_size());
+        wdl_os_commit_memory(block, block_size);
     }
+    *block = (_WDL_ArenaBlock) {
+        .memory = (void*) block + sizeof(_WDL_ArenaBlock),
+        .commit = wdl_os_get_page_size(),
+    };
+    return block;
+}
 
+struct WDL_Arena {
+    WDL_ArenaDesc desc;
+    u64 pos;
+    _WDL_ArenaBlock* first_block;
+    _WDL_ArenaBlock* last_block;
+    // Current 'index' of the chain.
+    u32 chain_index;
+};
+
+WDL_Arena* wdl_arena_create(void) {
+    return wdl_arena_create_configurable(_wdl_state.cfg.default_arena_desc);
+}
+
+WDL_Arena* wdl_arena_create_configurable(WDL_ArenaDesc desc) {
+    _WDL_ArenaBlock* block = _wdl_arena_block_alloc(desc.block_size, desc.virtual_memory);
+    WDL_Arena* arena = block->memory;
     *arena = (WDL_Arena) {
         .desc = desc,
-        .commit = wdl_os_get_page_size(),
-        .pos = aligned_arena_size,
+        .chain_index = 0,
+        .pos = _align_value(sizeof(WDL_Arena), desc.alignment),
+        .first_block = block,
+        .last_block = block,
     };
     return arena;
 }
 
 void wdl_arena_destroy(WDL_Arena* arena) {
-    wdl_os_release_memory(arena, arena->desc.region_size);
+    wdl_os_release_memory(arena, arena->desc.block_size);
 }
 
 void* wdl_arena_push(WDL_Arena* arena, u64 size) {
@@ -634,26 +649,41 @@ void* wdl_arena_push_no_zero(WDL_Arena* arena, u64 size) {
     u64 next_pos = arena->pos + size;
     u64 next_pos_aligned = _align_value(next_pos, arena->desc.alignment);
 
+    wdl_ensure(size <= arena->desc.block_size, "Push size too big for arena. Increase block size.");
+
     arena->pos = next_pos_aligned;
 
-    if (arena->pos > arena->desc.region_size) {
+    if (arena->pos > (arena->chain_index + 1) * arena->desc.block_size) {
         // Crash on OOM if we can't grow.
         if (!arena->desc.chaining) {
             wdl_ensure(false, "Arena is out of memory.");
         }
 
-        // TODO: Implement chaining.
+        _WDL_ArenaBlock* block = _wdl_arena_block_alloc(arena->desc.block_size, arena->desc.block_size);
+        block->prev = arena->last_block;
+        arena->last_block->next = block;
+        arena->last_block = block;
+
+        arena->chain_index++;
+        start_pos = arena->chain_index * arena->desc.block_size;
     }
 
+    _WDL_ArenaBlock* block = arena->last_block;
+
     if (arena->desc.virtual_memory) {
-        u64 page_aligned_pos = _align_value(arena->pos, wdl_os_get_page_size());
-        if (page_aligned_pos > arena->commit) {
-            arena->commit = page_aligned_pos;
-            wdl_os_commit_memory(arena, page_aligned_pos);
+        u64 block_pos_end = arena->pos - arena->chain_index * arena->desc.block_size;
+        // Add the size of a block since that also resides on the same allocated
+        // memory region.
+        u64 page_aligned_pos = _align_value(block_pos_end + sizeof(_WDL_ArenaBlock), wdl_os_get_page_size());
+        if (page_aligned_pos > block->commit) {
+            block->commit = page_aligned_pos;
+            wdl_os_commit_memory(block, page_aligned_pos);
         }
     }
 
-    return (u8*) arena + start_pos;
+    u64 block_pos = start_pos - arena->chain_index * arena->desc.block_size;
+    void* memory = block->memory + block_pos;
+    return memory;
 }
 
 void wdl_arena_pop(WDL_Arena* arena, u64 size) {
