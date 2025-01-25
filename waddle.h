@@ -101,6 +101,22 @@ struct WDL_ArenaDesc {
 typedef struct WDL_Config WDL_Config;
 struct WDL_Config {
     WDL_ArenaDesc default_arena_desc;
+    struct {
+        b8 colorful;
+    } logging;
+};
+
+// Basic configuration for desktop applications.
+static const WDL_Config WDL_CONFIG_DEFAULT = {
+    .default_arena_desc = {
+        .block_size = 4llu << 30, // 4 GB
+        .virtual_memory = true,
+        .alignment = sizeof(void*),
+        .chaining = true,
+    },
+    .logging = {
+        .colorful = true,
+    },
 };
 
 WDLAPI b8 wdl_init(WDL_Config config);
@@ -786,23 +802,34 @@ void wdl_scratch_end(WDL_Scratch scratch) {
 // -- Logging ------------------------------------------------------------------
 
 void _wdl_log_internal(WDL_LogLevel level, const char* file, u32 line, const char* msg, ...) {
+    const char* const level_color[WDL_LOG_LEVEL_COUNT] = {
+        "\033[101;30m",
+        "\033[0;91m",
+        "\033[0;93m",
+        "\033[0;92m",
+        "\033[0;94m",
+        "\033[0;95m",
+    };
     const char* const level_str[WDL_LOG_LEVEL_COUNT] = {
-        "\033[101;30mFATAL\033[0;0m",
-        "\033[0;91mERROR\033[0;0m",
-        "\033[0;93mWARN \033[0;0m",
-        "\033[0;92mINFO \033[0;0m",
-        "\033[0;94mDEBUG\033[0;0m",
-        "\033[0;95mTRACE\033[0;0m",
+        "FATAL",
+        "ERROR",
+        "WARN ",
+        "INFO ",
+        "DEBUG",
+        "TRACE",
     };
 
-    printf("%s \033[0;90m%s:%u: \033[0m", level_str[level], file, line);
+    if (_wdl_state.cfg.logging.colorful) {
+        printf("%s%s \033[0;90m%s:%u: \033[0m", level_color[level], level_str[level], file, line);
+    } else {
+        printf("%s %s:%u: ", level_str[level], file, line);
+    }
 
     va_list args;
     va_start(args, msg);
     vprintf(msg, args);
     va_end(args);
     printf("\n");
-
 }
 
 // -- String -------------------------------------------------------------------
