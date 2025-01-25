@@ -9,9 +9,9 @@
 #define WDL_OS_LINUX
 #endif //__linux__
 
-#ifdef __emscripten__
+#ifdef EMSCRIPTEN
 #define WDL_OS_EMSCRIPTEN
-#endif // __emscripten__
+#endif // EMSCRIPTEN
 
 #ifdef __unix__
 #define WDL_UNIX
@@ -623,6 +623,10 @@ static _WDL_ArenaBlock* _wdl_arena_block_alloc(u64 block_size, b8 virtual_memory
     return block;
 }
 
+static void _wdl_arena_block_dealloc(_WDL_ArenaBlock* block, u64 block_size) {
+    wdl_os_release_memory(block, block_size + sizeof(_WDL_ArenaBlock));
+}
+
 struct WDL_Arena {
     WDL_ArenaDesc desc;
     u64 pos;
@@ -703,15 +707,40 @@ void* wdl_arena_push_no_zero(WDL_Arena* arena, u64 size) {
 }
 
 void wdl_arena_pop(WDL_Arena* arena, u64 size) {
-    arena->pos = wdl_max(arena->pos - size, sizeof(WDL_Arena));
+    wdl_arena_pop_to(arena, arena->pos - size);
 }
 
 void wdl_arena_pop_to(WDL_Arena* arena, u64 pos) {
-    arena->pos = wdl_max(pos, sizeof(WDL_Arena));
+    arena->pos = wdl_max(pos, _align_value(sizeof(WDL_Arena), arena->desc.alignment));
+
+    if (arena->desc.chaining) {
+        u32 new_chain_index = arena->pos / arena->desc.block_size;
+        while (arena->chain_index > new_chain_index) {
+            _WDL_ArenaBlock* last = arena->last_block;
+            arena->last_block = arena->last_block->prev;
+            _wdl_arena_block_dealloc(last, arena->desc.block_size);
+            arena->chain_index--;
+        }
+    }
+
+    if (arena->desc.virtual_memory) {
+        _WDL_ArenaBlock* block = arena->last_block;
+        u64 block_pos = arena->pos - arena->chain_index * arena->desc.block_size;
+        // Add the size of a block since that also resides on the same allocated
+        // memory region.
+        u64 page_aligned_pos = _align_value(block_pos + sizeof(_WDL_ArenaBlock), wdl_os_get_page_size());
+        if (page_aligned_pos < block->commit) {
+            u64 unused_size = block->commit - page_aligned_pos;
+            wdl_os_decommit_memory((void*) block + page_aligned_pos, unused_size);
+            wdl_debug("Decommited page at boundry point %llu", page_aligned_pos);
+            wdl_debug("%llu unused bytes", unused_size);
+            block->commit = page_aligned_pos;
+        }
+    }
 }
 
 void wdl_arena_clear(WDL_Arena* arena) {
-    arena->pos = sizeof(WDL_Arena);
+    wdl_arena_pop_to(arena, 0);
 }
 
 u64 wdl_arena_get_pos(WDL_Arena* arena) {
