@@ -52,6 +52,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 typedef unsigned char      u8;
 typedef unsigned short     u16;
@@ -122,6 +123,8 @@ static const WDL_Config WDL_CONFIG_DEFAULT = {
 WDLAPI b8 wdl_init(WDL_Config config);
 WDLAPI b8 wdl_terminate(void);
 
+WDLAPI void wdl_dump_arena_metrics(void);
+
 // -- Utils --------------------------------------------------------------------
 
 #define wdl_kb(V) ((u64) (V) << 10)
@@ -174,6 +177,7 @@ WDLAPI u64        wdl_arena_get_pos(const WDL_Arena* arena);
 
 typedef struct WDL_ArenaMetrics WDL_ArenaMetrics;
 struct WDL_ArenaMetrics {
+    u32 id;
     WDL_Str tag;
     u64 current_usage;
     u64 peak_usage;
@@ -184,7 +188,7 @@ struct WDL_ArenaMetrics {
 };
 
 WDLAPI void             wdl_arena_tag(WDL_Arena* arena, WDL_Str tag);
-WDLAPI WDL_ArenaMetrics wdl_arena_get_metrics(WDL_Arena* arena);
+WDLAPI WDL_ArenaMetrics wdl_arena_get_metrics(const WDL_Arena* arena);
 
 typedef struct WDL_Temp WDL_Temp;
 struct WDL_Temp {
@@ -204,7 +208,7 @@ WDLAPI WDL_Str wdl_str(const u8* data, u32 len);
 WDLAPI u32     wdl_str_cstrlen(const u8* cstr);
 WDLAPI char*   wdl_str_to_cstr(WDL_Arena* arena, WDL_Str str);
 WDLAPI b8      wdl_str_equal(WDL_Str a, WDL_Str b);
-
+WDLAPI WDL_Str wdl_str_pushf(WDL_Arena* arena, const void* fmt, ...);
 
 // -- Thread context -----------------------------------------------------------
 
@@ -557,6 +561,12 @@ struct _WDL_State {
     WDL_Config cfg;
     _WDL_PlatformState *platform;
     WDL_ThreadCtx* main_ctx;
+
+    struct {
+        WDL_Arena* first;
+        WDL_Arena* last;
+        u32 curr_id;
+    } arenas;
 };
 
 static _WDL_State _wdl_state = {0};
@@ -645,6 +655,10 @@ static void _wdl_arena_block_dealloc(_WDL_ArenaBlock* block, u64 block_size) {
 }
 
 struct WDL_Arena {
+    WDL_Arena* next;
+    WDL_Arena* prev;
+    u32 id;
+
     WDL_ArenaDesc desc;
     u64 pos;
     _WDL_ArenaBlock* first_block;
@@ -652,7 +666,13 @@ struct WDL_Arena {
     // Current 'index' of the chain.
     u32 chain_index;
 
-    WDL_ArenaMetrics metrics;
+    // Metrics
+    WDL_Str tag;
+    u64 peak_usage;
+    u64 push_operations;
+    u64 pop_operations;
+    u64 total_pushed_bytes;
+    u64 total_popped_bytes;
 };
 
 WDL_Arena* wdl_arena_create(void) {
@@ -663,17 +683,35 @@ WDL_Arena* wdl_arena_create_configurable(WDL_ArenaDesc desc) {
     _WDL_ArenaBlock* block = _wdl_arena_block_alloc(desc.block_size, desc.virtual_memory);
     WDL_Arena* arena = block->memory;
     *arena = (WDL_Arena) {
+        .prev = _wdl_state.arenas.last,
+        .id = _wdl_state.arenas.curr_id++,
         .desc = desc,
         .chain_index = 0,
         .pos = _align_value(sizeof(WDL_Arena), desc.alignment),
-        .metrics.peak_usage = _align_value(sizeof(WDL_Arena), desc.alignment),
+        .peak_usage = _align_value(sizeof(WDL_Arena), desc.alignment),
         .first_block = block,
         .last_block = block,
     };
+
+    if (_wdl_state.arenas.first == NULL) {
+        _wdl_state.arenas.first = arena;
+        _wdl_state.arenas.last = arena;
+    }
+
+    _wdl_state.arenas.last->next = arena;
+    _wdl_state.arenas.last = arena;
+
     return arena;
 }
 
 void wdl_arena_destroy(WDL_Arena* arena) {
+    if (arena->prev != NULL) {
+        arena->prev->next = arena->next;
+    }
+    if (arena->next != NULL) {
+        arena->next->prev = arena->prev;
+    }
+
     wdl_os_release_memory(arena, arena->desc.block_size);
 }
 
@@ -693,9 +731,9 @@ void* wdl_arena_push_no_zero(WDL_Arena* arena, u64 size) {
 
     arena->pos = next_pos;
 
-    arena->metrics.peak_usage = wdl_max(arena->metrics.peak_usage, arena->pos);
-    arena->metrics.total_pushed_bytes += aligned_size;
-    arena->metrics.push_operations++;
+    arena->peak_usage = wdl_max(arena->peak_usage, arena->pos);
+    arena->total_pushed_bytes += aligned_size;
+    arena->push_operations++;
 
     if (arena->pos > (arena->chain_index + 1) * arena->desc.block_size) {
         // Crash on OOM if we can't grow.
@@ -738,8 +776,8 @@ void wdl_arena_pop(WDL_Arena* arena, u64 size) {
 void wdl_arena_pop_to(WDL_Arena* arena, u64 pos) {
     wdl_assert(pos <= arena->pos, "Popping to a position beyond the current position.");
 
-    arena->metrics.total_popped_bytes += arena->pos - pos;
-    arena->metrics.pop_operations++;
+    arena->total_popped_bytes += arena->pos - pos;
+    arena->pop_operations++;
 
     arena->pos = wdl_max(pos, _align_value(sizeof(WDL_Arena), arena->desc.alignment));
 
@@ -787,12 +825,42 @@ void wdl_temp_end(WDL_Temp temp) {
 }
 
 void wdl_arena_tag(WDL_Arena* arena, WDL_Str tag) {
-    arena->metrics.tag = tag;
+    arena->tag = tag;
 }
 
-WDL_ArenaMetrics wdl_arena_get_metrics(WDL_Arena* arena) {
-    arena->metrics.current_usage = arena->pos;
-    return arena->metrics;
+WDL_ArenaMetrics wdl_arena_get_metrics(const WDL_Arena* arena) {
+    return (WDL_ArenaMetrics) {
+        .id = arena->id,
+        .tag = arena->tag,
+        .current_usage = arena->pos,
+        .peak_usage = arena->peak_usage,
+        .push_operations = arena->push_operations,
+        .pop_operations = arena->pop_operations,
+        .total_pushed_bytes = arena->total_pushed_bytes,
+        .total_popped_bytes = arena->total_popped_bytes,
+    };
+}
+
+static void print_arena_metrics(WDL_ArenaMetrics metrics) {
+    WDL_Str tag = wdl_str_lit("untagged");
+    if (metrics.tag.len != 0) {
+        tag = metrics.tag;
+    }
+    wdl_info("%u (%.*s)", metrics.id, tag.len, tag.data);
+    wdl_info("    Current usage                %llu bytes", metrics.current_usage);
+    wdl_info("    Peak usage                   %llu bytes", metrics.peak_usage);
+    wdl_info("    Number of push operations    %llu", metrics.push_operations);
+    wdl_info("    Number of pop operations     %llu", metrics.pop_operations);
+    wdl_info("    Total bytes pushed           %llu bytes", metrics.total_pushed_bytes);
+    wdl_info("    Total bytes popped           %llu bytes", metrics.total_popped_bytes);
+}
+
+void wdl_dump_arena_metrics(void) {
+    WDL_Arena* curr = _wdl_state.arenas.first;
+    while (curr != NULL) {
+        print_arena_metrics(wdl_arena_get_metrics(curr));
+        curr = curr->next;
+    }
 }
 
 // -- Thread context -----------------------------------------------------------
@@ -809,7 +877,7 @@ WDL_ThreadCtx* wdl_thread_ctx_create(void) {
     WDL_Arena* scratch_arenas[SCRATCH_ARENA_COUNT] = {0};
     for (u32 i = 0; i < SCRATCH_ARENA_COUNT; i++) {
         scratch_arenas[i] = wdl_arena_create();
-        wdl_arena_tag(scratch_arenas[i], wdl_str_lit("Scratch"));
+        wdl_arena_tag(scratch_arenas[i], wdl_str_pushf(scratch_arenas[i], "scratch-%u", i));
     }
 
     WDL_ThreadCtx* ctx = wdl_arena_push(scratch_arenas[0], sizeof(WDL_ThreadCtx));
@@ -929,6 +997,21 @@ b8 wdl_str_equal(WDL_Str a, WDL_Str b) {
     }
 
     return memcmp(a.data, b.data, a.len) == 0;
+}
+
+WDL_Str wdl_str_pushf(WDL_Arena* arena, const void* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    va_list len_args;
+    va_copy(len_args, args);
+    u64 len = vsnprintf(NULL, 0, fmt, len_args) + 1;
+    va_end(len_args);
+    u8* buffer = wdl_arena_push_no_zero(arena, len);
+    vsnprintf((char*) buffer, len, fmt, args);
+    va_end(args);
+    // Remove the null terminator.
+    wdl_arena_pop(arena, 1);
+    return wdl_str(buffer, len - 1);
 }
 
 // -- Hash map -----------------------------------------------------------------
