@@ -664,9 +664,9 @@ void* wdl_arena_push(WDL_Arena* arena, u64 size) {
 }
 
 void* wdl_arena_push_no_zero(WDL_Arena* arena, u64 size) {
-    u64 start_pos = arena->pos;
+    u64 start_pos = _align_value(arena->pos, arena->desc.alignment);
 
-    u64 next_pos = arena->pos + size;
+    u64 next_pos = start_pos + size;
     u64 next_pos_aligned = _align_value(next_pos, arena->desc.alignment);
 
     wdl_ensure(size <= arena->desc.block_size, "Push size too big for arena. Increase block size.");
