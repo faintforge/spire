@@ -732,8 +732,6 @@ void wdl_arena_pop_to(WDL_Arena* arena, u64 pos) {
         if (page_aligned_pos < block->commit) {
             u64 unused_size = block->commit - page_aligned_pos;
             wdl_os_decommit_memory((void*) block + page_aligned_pos, unused_size);
-            wdl_debug("Decommited page at boundry point %llu", page_aligned_pos);
-            wdl_debug("%llu unused bytes", unused_size);
             block->commit = page_aligned_pos;
         }
     }
