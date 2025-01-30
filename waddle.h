@@ -415,6 +415,9 @@ WDL_INLINE WDL_Ivec2 wdl_iv2_divs(WDL_Ivec2 vec, i32 scaler) { return wdl_iv2(ve
 WDL_INLINE f32 wdl_iv2_magnitude_squared(WDL_Ivec2 vec) { return vec.x * vec.x + vec.y * vec.y; }
 WDL_INLINE f32 wdl_iv2_magnitude(WDL_Ivec2 vec) { return sqrtf(wdl_iv2_magnitude_squared(vec)); }
 
+WDL_INLINE WDL_Vec2 wdl_iv2_to_v2(WDL_Ivec2 vec) { return wdl_v2(vec.x, vec.y); }
+WDL_INLINE WDL_Ivec2 wdl_v2_to_iv2(WDL_Vec2 vec) { return wdl_iv2(vec.x, vec.y); }
+
 typedef struct WDL_Vec4 WDL_Vec4;
 struct WDL_Vec4 {
     f32 x, y, z, w;
