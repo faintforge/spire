@@ -167,13 +167,13 @@ typedef struct SP_Arena SP_Arena;
 
 SP_API SP_Arena* sp_arena_create(void);
 SP_API SP_Arena* sp_arena_create_configurable(SP_ArenaDesc desc);
-SP_API void       sp_arena_destroy(SP_Arena* arena);
-SP_API void*      sp_arena_push(SP_Arena* arena, u64 size);
-SP_API void*      sp_arena_push_no_zero(SP_Arena* arena, u64 size);
-SP_API void       sp_arena_pop(SP_Arena* arena, u64 size);
-SP_API void       sp_arena_pop_to(SP_Arena* arena, u64 pos);
-SP_API void       sp_arena_clear(SP_Arena* arena);
-SP_API u64        sp_arena_get_pos(const SP_Arena* arena);
+SP_API void      sp_arena_destroy(SP_Arena* arena);
+SP_API void*     sp_arena_push(SP_Arena* arena, u64 size);
+SP_API void*     sp_arena_push_no_zero(SP_Arena* arena, u64 size);
+SP_API void      sp_arena_pop(SP_Arena* arena, u64 size);
+SP_API void      sp_arena_pop_to(SP_Arena* arena, u64 pos);
+SP_API void      sp_arena_clear(SP_Arena* arena);
+SP_API u64       sp_arena_get_pos(const SP_Arena* arena);
 
 typedef struct SP_ArenaMetrics SP_ArenaMetrics;
 struct SP_ArenaMetrics {
@@ -187,7 +187,7 @@ struct SP_ArenaMetrics {
     u64 total_popped_bytes;
 };
 
-SP_API void             sp_arena_tag(SP_Arena* arena, SP_Str tag);
+SP_API void            sp_arena_tag(SP_Arena* arena, SP_Str tag);
 SP_API SP_ArenaMetrics sp_arena_get_metrics(const SP_Arena* arena);
 
 typedef struct SP_Temp SP_Temp;
@@ -197,7 +197,7 @@ struct SP_Temp {
 };
 
 SP_API SP_Temp sp_temp_begin(SP_Arena* arena);
-SP_API void       sp_temp_end(SP_Temp temp);
+SP_API void    sp_temp_end(SP_Temp temp);
 
 // -- String -------------------------------------------------------------------
 
@@ -205,9 +205,9 @@ SP_API void       sp_temp_end(SP_Temp temp);
 #define sp_cstr(CSTR) sp_str((const u8*) (CSTR), sp_str_cstrlen((const u8*) (CSTR)))
 
 SP_API SP_Str sp_str(const u8* data, u32 len);
-SP_API u32     sp_str_cstrlen(const u8* cstr);
-SP_API char*   sp_str_to_cstr(SP_Arena* arena, SP_Str str);
-SP_API b8      sp_str_equal(SP_Str a, SP_Str b);
+SP_API u32    sp_str_cstrlen(const u8* cstr);
+SP_API char*  sp_str_to_cstr(SP_Arena* arena, SP_Str str);
+SP_API b8     sp_str_equal(SP_Str a, SP_Str b);
 SP_API SP_Str sp_str_pushf(SP_Arena* arena, const void* fmt, ...);
 
 // -- Thread context -----------------------------------------------------------
@@ -215,15 +215,15 @@ SP_API SP_Str sp_str_pushf(SP_Arena* arena, const void* fmt, ...);
 typedef struct SP_ThreadCtx SP_ThreadCtx;
 
 SP_API SP_ThreadCtx* sp_thread_ctx_create(void);
-SP_API void              sp_thread_ctx_destroy(SP_ThreadCtx* ctx);
-SP_API void              sp_thread_ctx_set(SP_ThreadCtx* ctx);
+SP_API void          sp_thread_ctx_destroy(SP_ThreadCtx* ctx);
+SP_API void          sp_thread_ctx_set(SP_ThreadCtx* ctx);
 
 // -- Scratch arena ------------------------------------------------------------
 
 typedef SP_Temp SP_Scratch;
 
 SP_API SP_Scratch sp_scratch_begin(SP_Arena* const* conflicts, u32 count);
-SP_API void          sp_scratch_end(SP_Scratch scratch);
+SP_API void       sp_scratch_end(SP_Scratch scratch);
 
 // -- Logging ------------------------------------------------------------------
 
@@ -254,7 +254,7 @@ typedef struct SP_Lib SP_Lib;
 typedef void (*SP_LibFunc)(void);
 
 SP_API SP_Lib*    sp_lib_load(SP_Arena* arena, const char* filename);
-SP_API void        sp_lib_unload(SP_Lib* lib);
+SP_API void       sp_lib_unload(SP_Lib* lib);
 SP_API SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name);
 
 // -- Math ---------------------------------------------------------------------
@@ -480,10 +480,10 @@ struct SP_HashMapIter {
 };
 
 SP_API SP_HashMapIter sp_hm_iter_new(SP_HashMap* map);
-SP_API b8              sp_hm_iter_valid(SP_HashMapIter iter);
+SP_API b8             sp_hm_iter_valid(SP_HashMapIter iter);
 SP_API SP_HashMapIter sp_hm_iter_next(SP_HashMapIter iter);
-SP_API void*           sp_hm_iter_get_keyp(SP_HashMapIter iter);
-SP_API void*           sp_hm_iter_get_valuep(SP_HashMapIter iter);
+SP_API void*          sp_hm_iter_get_keyp(SP_HashMapIter iter);
+SP_API void*          sp_hm_iter_get_valuep(SP_HashMapIter iter);
 
 #define sp_hm_iter_get_key(ITER, KEY_TYPE) ({ \
         KEY_TYPE result; \
@@ -779,10 +779,11 @@ void sp_arena_pop(SP_Arena* arena, u64 size) {
 void sp_arena_pop_to(SP_Arena* arena, u64 pos) {
     sp_assert(pos <= arena->pos, "Popping to a position beyond the current position.");
 
-    arena->total_popped_bytes += arena->pos - pos;
+    u64 aligned_pos = sp_max(pos, _align_value(sizeof(SP_Arena), arena->desc.alignment));
+    arena->total_popped_bytes += arena->pos - aligned_pos;
     arena->pop_operations++;
 
-    arena->pos = sp_max(pos, _align_value(sizeof(SP_Arena), arena->desc.alignment));
+    arena->pos = aligned_pos;
 
     if (arena->desc.chaining) {
         u32 new_chain_index = arena->pos / arena->desc.block_size;
