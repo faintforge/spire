@@ -24,6 +24,18 @@
 #endif // _POSIX_VERSION
 #endif // SP_UNIX
 
+#ifdef __GNUC__
+#define SP_COMP_GCC
+#endif // __GNUC__
+
+#ifdef __clang__
+#define SP_COMP_CLANG
+#endif // __clang__
+
+#ifdef _MSC_VER
+#define SP_COMP_MSVC
+#endif // _MSC_VER
+
 #if defined(SP_SHARED) && defined(SP_OS_WINDOWS)
     #if defined(WADDLE_IMPLEMENTATION)
         #define SP_API __declspec(dllexport)
@@ -36,10 +48,15 @@
     #define SP_API extern
 #endif
 
-#ifdef SP_OS_WINDOWS
+#ifdef SP_COMP_MSVC
 #define SP_THREAD_LOCAL __declspec(thread)
 #define SP_INLINE __forceinline
-#endif // SP_OS_WINDOWS
+#elif defined(SP_COMP_GCC)
+#define SP_THREAD_LOCAL __thread
+#define SP_INLINE static inline __attribute__((always_inline))
+#else
+#error "Unsupported compiler!"
+#endif // SP_COMP_MSVC
 
 #ifdef SP_POSIX
 #define SP_THREAD_LOCAL __thread

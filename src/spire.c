@@ -324,7 +324,7 @@ struct SP_ThreadCtx {
     SP_Arena *scratch_arenas[SCRATCH_ARENA_COUNT];
 };
 
-SP_THREAD_LOCAL SP_ThreadCtx* _sp_thread_ctx = {0};
+SP_THREAD_LOCAL SP_ThreadCtx* _sp_thread_ctx = NULL;
 
 SP_ThreadCtx* sp_thread_ctx_create(void) {
     SP_Arena* scratch_arenas[SCRATCH_ARENA_COUNT] = {0};

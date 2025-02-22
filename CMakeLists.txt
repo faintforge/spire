@@ -11,5 +11,10 @@ target_include_directories(spire
 set_target_properties(spire PROPERTIES
     C_STANDARD 99
     C_STANDARD_REQUIRED YES
-    COMPILE_FLAGS "-Wall -Wextra -Wpedantic"
 )
+
+if (MSVC)
+    add_compile_options("/W4")
+else ()
+    add_compile_options("-Wall -Wextra -Wpedantic")
+endif ()
