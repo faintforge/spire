@@ -628,7 +628,7 @@ struct _SP_ArenaBlock {
     _SP_ArenaBlock *next;
     _SP_ArenaBlock *prev;
     u64 commit;
-    void* memory;
+    u8* memory;
 };
 
 static u64 _align_value(u64 value, u64 align) {
@@ -647,7 +647,7 @@ static _SP_ArenaBlock* _sp_arena_block_alloc(u64 block_size, b8 virtual_memory) 
         sp_os_commit_memory(block, block_size);
     }
     *block = (_SP_ArenaBlock) {
-        .memory = (void*) block + sizeof(_SP_ArenaBlock),
+        .memory = (u8*) block + sizeof(_SP_ArenaBlock),
         .commit = sp_os_get_page_size(),
     };
     return block;
@@ -684,7 +684,7 @@ SP_Arena* sp_arena_create(void) {
 
 SP_Arena* sp_arena_create_configurable(SP_ArenaDesc desc) {
     _SP_ArenaBlock* block = _sp_arena_block_alloc(desc.block_size, desc.virtual_memory);
-    SP_Arena* arena = block->memory;
+    SP_Arena* arena = (SP_Arena*) block->memory;
     *arena = (SP_Arena) {
         .prev = _sp_state.arenas.last,
         .id = _sp_state.arenas.curr_id++,
@@ -767,7 +767,7 @@ void* sp_arena_push_no_zero(SP_Arena* arena, u64 size) {
     }
 
     u64 block_pos = start_pos - arena->chain_index * arena->desc.block_size;
-    void* memory = block->memory + block_pos;
+    u8* memory = block->memory + block_pos;
     return memory;
 }
 
@@ -803,7 +803,7 @@ void sp_arena_pop_to(SP_Arena* arena, u64 pos) {
         u64 page_aligned_pos = _align_value(block_pos + sizeof(_SP_ArenaBlock), sp_os_get_page_size());
         if (page_aligned_pos < block->commit) {
             u64 unused_size = block->commit - page_aligned_pos;
-            sp_os_decommit_memory((void*) block + page_aligned_pos, unused_size);
+            sp_os_decommit_memory((u8*) block + page_aligned_pos, unused_size);
             block->commit = page_aligned_pos;
         }
     }
@@ -1020,7 +1020,7 @@ SP_Str sp_str_pushf(SP_Arena* arena, const void* fmt, ...) {
 
 // -- Hash map -----------------------------------------------------------------
 
-typedef enum _SP_HashMapBucketState : u8 {
+typedef enum _SP_HashMapBucketState {
     _SP_HASH_MAP_BUCKET_STATE_EMPTY,
     _SP_HASH_MAP_BUCKET_STATE_ALIVE,
     _SP_HASH_MAP_BUCKET_STATE_DEAD,
@@ -1408,6 +1408,92 @@ SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name) {
 }
 
 #endif // SP_POSIX
+
+#ifdef SP_OS_WINDOWS
+
+#include <Windows.h>
+
+struct _SP_PlatformState {
+    f32 start_time;
+};
+
+static f32 _sp_win32_time_stamp() {
+    LARGE_INTEGER freq;
+    LARGE_INTEGER time;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&time);
+    return (f32) time.QuadPart / (f32) freq.QuadPart;
+}
+
+b8 _sp_platform_init(void) {
+    _SP_PlatformState* platform = sp_os_reserve_memory(sizeof(_SP_PlatformState));
+    if (platform == NULL) {
+        return false;
+    }
+    sp_os_commit_memory(platform, sizeof(_SP_PlatformState));
+
+    *platform = (_SP_PlatformState){
+        .start_time = _sp_win32_time_stamp(),
+    };
+    _sp_state.platform = platform;
+
+    return true;
+}
+
+b8 _sp_platform_termiante(void) {
+    sp_os_release_memory(_sp_state.platform, sizeof(_SP_PlatformState));
+    return true;
+}
+
+void* sp_os_reserve_memory(u64 size) {
+    void* ptr = VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_NOACCESS);
+    return ptr;
+}
+
+void  sp_os_commit_memory(void* ptr, u64 size) {
+    VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE);
+}
+
+void  sp_os_decommit_memory(void* ptr, u64 size) {
+    VirtualFree(ptr, MEM_DECOMMIT, size);
+}
+
+void  sp_os_release_memory(void* ptr, u64 size) {
+    VirtualFree(ptr, MEM_RELEASE, size);
+}
+
+f32 sp_os_get_time(void) {
+    return _sp_win32_time_stamp() - _sp_state.platform->start_time;
+}
+
+u32 sp_os_get_page_size(void) {
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+    return info.dwPageSize;
+}
+
+// -- Library ------------------------------------------------------------------
+
+struct SP_Lib {
+    HMODULE* handle;
+};
+
+SP_Lib* sp_lib_load(SP_Arena* arena, const char* filename) {
+    SP_Lib* lib = sp_arena_push_no_zero(arena, sizeof(SP_Lib));
+    lib->handle = LoadLibraryA(filename);
+    return lib;
+}
+
+void sp_lib_unload(SP_Lib* lib) {
+    FreeLibrary(lib->handle);
+    lib->handle = NULL;
+}
+
+SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name) {
+    return GetProcAddress(lib->handle, func_name);
+}
+
+#endif // SP_OS_WINDOWS
 
 #endif // SPIRE_IMPLEMENTATION
 #endif // SPIRE_H_
