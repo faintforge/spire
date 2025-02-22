@@ -1411,7 +1411,7 @@ SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name) {
 
 #ifdef SP_OS_WINDOWS
 
-#include <Windows.h>
+#include <windows.h>
 
 struct _SP_PlatformState {
     f32 start_time;
@@ -1475,7 +1475,7 @@ u32 sp_os_get_page_size(void) {
 // -- Library ------------------------------------------------------------------
 
 struct SP_Lib {
-    HMODULE* handle;
+    HMODULE handle;
 };
 
 SP_Lib* sp_lib_load(SP_Arena* arena, const char* filename) {
@@ -1490,7 +1490,7 @@ void sp_lib_unload(SP_Lib* lib) {
 }
 
 SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name) {
-    return GetProcAddress(lib->handle, func_name);
+    return (SP_LibFunc) GetProcAddress(lib->handle, func_name);
 }
 
 #endif // SP_OS_WINDOWS
