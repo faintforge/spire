@@ -853,7 +853,11 @@ void sp_lib_unload(SP_Lib* lib) {
 }
 
 SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name) {
-    return dlsym(lib->handle, func_name);
+    // I'm so sorry for this conversion, -Wpedantic requires this in order to
+    // get a function pointer.
+    SP_LibFunc func;
+    *(void**) &func = dlsym(lib->handle, func_name);
+    return func;
 }
 
 #endif // SP_POSIX
