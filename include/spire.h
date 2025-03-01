@@ -18,6 +18,8 @@
 #endif // __unix__
 
 #ifdef SP_UNIX
+// Needed for clock_gettime
+#define _POSIX_C_SOURCE 199309L
 #include <unistd.h>
 #ifdef _POSIX_VERSION
 #define SP_POSIX
@@ -157,17 +159,21 @@ SP_API void sp_dump_arena_metrics(void);
 
 SP_API u64 sp_fvn1a_hash(const void* data, u64 len);
 
-#define sp_ensure(COND, MSG, ...) do { \
+// Must supply a message printf style formatted string as the first variadic
+// argument.
+#define sp_ensure(COND, ...) do { \
     if (!(COND)) {\
-        sp_fatal(MSG, ##__VA_ARGS__); \
+        sp_fatal(__VA_ARGS__); \
         abort(); \
     } \
 } while (0)
 
+// Must supply a message printf style formatted string as the first variadic
+// argument.
 #ifdef SP_DEBUG
-#define sp_assert(COND, MSG, ...) sp_ensure(COND, MSG, ##__VA_ARGS__)
+#define sp_assert(COND, ...) sp_ensure(COND, ##__VA_ARGS__)
 #else // SP_DEBUG
-#define sp_assert(cond, msg, ...)
+#define sp_assert(cond, ...)
 #endif // SP_DEBUG
 
 // -- String -------------------------------------------------------------------
@@ -255,12 +261,12 @@ typedef enum SP_LogLevel {
     SP_LOG_LEVEL_COUNT,
 } SP_LogLevel;
 
-#define sp_fatal(MSG, ...) _sp_log_internal(SP_LOG_LEVEL_FATAL, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define sp_error(MSG, ...) _sp_log_internal(SP_LOG_LEVEL_ERROR, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define sp_warn(MSG, ...) _sp_log_internal(SP_LOG_LEVEL_WARN, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define sp_info(MSG, ...) _sp_log_internal(SP_LOG_LEVEL_INFO, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define sp_debug(MSG, ...) _sp_log_internal(SP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
-#define sp_trace(MSG, ...) _sp_log_internal(SP_LOG_LEVEL_TRACE, __FILE__, __LINE__, MSG, ##__VA_ARGS__)
+#define sp_fatal(...) _sp_log_internal(SP_LOG_LEVEL_FATAL, __FILE__, __LINE__, ##__VA_ARGS__)
+#define sp_error(...) _sp_log_internal(SP_LOG_LEVEL_ERROR, __FILE__, __LINE__, ##__VA_ARGS__)
+#define sp_warn(...) _sp_log_internal(SP_LOG_LEVEL_WARN, __FILE__, __LINE__, ##__VA_ARGS__)
+#define sp_info(...) _sp_log_internal(SP_LOG_LEVEL_INFO, __FILE__, __LINE__, ##__VA_ARGS__)
+#define sp_debug(...) _sp_log_internal(SP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, ##__VA_ARGS__)
+#define sp_trace(...) _sp_log_internal(SP_LOG_LEVEL_TRACE, __FILE__, __LINE__, ##__VA_ARGS__)
 
 SP_API void _sp_log_internal(SP_LogLevel level, const char* file, u32 line, const char* msg, ...);
 

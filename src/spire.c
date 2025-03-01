@@ -832,7 +832,7 @@ f32 sp_os_get_time(void) {
 }
 
 u32 sp_os_get_page_size(void) {
-    return getpagesize();
+    return sysconf(_SC_PAGESIZE);
 }
 
 // -- Library ------------------------------------------------------------------

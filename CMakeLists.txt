@@ -10,7 +10,8 @@ target_include_directories(spire
 
 set_target_properties(spire PROPERTIES
     C_STANDARD 99
-    C_STANDARD_REQUIRED YES
+    C_STANDARD_REQUIRED false
+    C_EXTENSIONS false
 )
 
 if (MSVC)
