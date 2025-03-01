@@ -171,7 +171,7 @@ SP_API u64 sp_fvn1a_hash(const void* data, u64 len);
 // Must supply a message printf style formatted string as the first variadic
 // argument.
 #ifdef SP_DEBUG
-#define sp_assert(COND, ...) sp_ensure(COND, ##__VA_ARGS__)
+#define sp_assert(COND, ...) sp_ensure(COND, __VA_ARGS__)
 #else // SP_DEBUG
 #define sp_assert(cond, ...)
 #endif // SP_DEBUG
@@ -261,12 +261,12 @@ typedef enum SP_LogLevel {
     SP_LOG_LEVEL_COUNT,
 } SP_LogLevel;
 
-#define sp_fatal(...) _sp_log_internal(SP_LOG_LEVEL_FATAL, __FILE__, __LINE__, ##__VA_ARGS__)
-#define sp_error(...) _sp_log_internal(SP_LOG_LEVEL_ERROR, __FILE__, __LINE__, ##__VA_ARGS__)
-#define sp_warn(...) _sp_log_internal(SP_LOG_LEVEL_WARN, __FILE__, __LINE__, ##__VA_ARGS__)
-#define sp_info(...) _sp_log_internal(SP_LOG_LEVEL_INFO, __FILE__, __LINE__, ##__VA_ARGS__)
-#define sp_debug(...) _sp_log_internal(SP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, ##__VA_ARGS__)
-#define sp_trace(...) _sp_log_internal(SP_LOG_LEVEL_TRACE, __FILE__, __LINE__, ##__VA_ARGS__)
+#define sp_fatal(...) _sp_log_internal(SP_LOG_LEVEL_FATAL, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_error(...) _sp_log_internal(SP_LOG_LEVEL_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_warn(...) _sp_log_internal(SP_LOG_LEVEL_WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_info(...) _sp_log_internal(SP_LOG_LEVEL_INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_debug(...) _sp_log_internal(SP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_trace(...) _sp_log_internal(SP_LOG_LEVEL_TRACE, __FILE__, __LINE__, __VA_ARGS__)
 
 SP_API void _sp_log_internal(SP_LogLevel level, const char* file, u32 line, const char* msg, ...);
 
