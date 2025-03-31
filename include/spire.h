@@ -554,6 +554,114 @@ SP_API void* _sp_hash_map_getp_impl(SP_HashMap* map, const void* key);
 SP_API b8    _sp_hash_map_has_impl(SP_HashMap* map, const void* key);
 SP_API void  _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* out_value);
 
+// -- Linked lists -------------------------------------------------------------
+
+#define sp_null_set(p) ((p) = 0)
+#define sp_null_check(p) ((p) == 0)
+
+// Doubly linked list
+#define sp_dll_insert(f, l, n, p) sp_dll_insert_npz(f, l, n, p, next, prev, sp_null_check, sp_null_set)
+#define sp_dll_push_back(f, l, n) sp_dll_insert_npz(f, l, n, l, next, prev, sp_null_check, sp_null_set)
+#define sp_dll_push_front(f, l, n) sp_dll_insert_npz(f, l, n, (__typeof__(n)) 0, next, prev, sp_null_check, sp_null_set)
+
+#define sp_dll_remove(f, l, n) sp_dll_remove_npz(f, l, n, next, prev, sp_null_check, sp_null_set)
+#define sp_dll_pop_back(f, l) sp_dll_remove_npz(f, l, l, next, prev, sp_null_check, sp_null_set)
+#define sp_dll_pop_front(f, l) sp_dll_remove_npz(f, l, f, next, prev, sp_null_check, sp_null_set)
+
+#define sp_dll_insert_npz(f, l, n, p, next, prev, zero_check, zero_set) do { \
+    if (zero_check(f)) { \
+        (f) = (l) = (n); \
+        zero_set((n)->next); \
+        zero_set((n)->prev); \
+    } else { \
+        if (zero_check(p)) { \
+            (n)->next = (f); \
+            zero_set((n)->prev); \
+            (f)->prev = (n); \
+            (f) = (n); \
+        } else { \
+            if (!zero_check((p)->next)) { \
+                (p)->next->prev = (n); \
+                (n)->next = (p)->next; \
+            } \
+            (n)->prev = (p); \
+            (p)->next = (n); \
+            if ((p) == (l)) { \
+                (l) = (n); \
+            } \
+        } \
+    } \
+} while (0)
+#define sp_dll_push_back_npz(f, l, n, next, prev, zero_check, zero_set) sp_dll_insert_npz(f, l, n, l, next, prev, zero_check, zero_set)
+#define sp_dll_push_front_npz(f, l, n, next, prev, zero_check, zero_set) sp_dll_insert_npz(f, l, n, (__typeof__(n)) 0, next, prev, zero_check, zero_set)
+
+#define sp_dll_remove_npz(f, l, n, next, prev, zero_check, zero_set) do { \
+    if (!zero_check(f)) { \
+        if ((f) == (l)) { \
+            zero_set(f); \
+            zero_set(l); \
+        } else { \
+            if (!zero_check((n)->next)) { \
+                (n)->next->prev = (n)->prev; \
+            } \
+            if (!zero_check((n)->prev)) { \
+                (n)->prev->next = (n)->next; \
+            } \
+            if ((n) == (f)) { \
+                if (!zero_check((f)->next)) { \
+                    (f)->next->prev = (f)->prev; \
+                } \
+                (f) = (f)->next; \
+            } \
+            if ((n) == (l)) { \
+                if (!zero_check((l)->prev)) { \
+                    (l)->prev->next = (l)->next; \
+                } \
+                (l) = (l)->prev; \
+            } \
+        } \
+    } \
+} while (0)
+#define sp_dll_pop_back_npz(f, l, n, next, prev, zero_check, zero_set) sp_dll_remove_npz(f, l, l, next, prev, zero_check, zero_set)
+#define sp_dll_pop_front_npz(f, l, n, next, prev, zero_check, zero_set) sp_dll_remove_npz(f, l, f, next, prev, zero_check, zero_set)
+
+// Singly linked list
+#define sp_sll_queue_push(f, l, n) sp_sll_queue_push_nz(f, l, n, next, sp_null_check, sp_null_set)
+#define sp_sll_queue_pop(f, l) sp_sll_queue_pop_nz(f, l, next, sp_null_check, sp_null_set)
+
+#define sp_sll_queue_push_nz(f, l, n, next, zero_check, zero_set) do { \
+    if (zero_check(f)) { \
+        (f) = (l) = (n); \
+    } else { \
+        (l)->next = (n); \
+        (l) = (n); \
+    } \
+    (n)->next = NULL; \
+} while (0)
+#define sp_sll_queue_pop_nz(f, l, next, zero_check, zero_set) do { \
+    if ((f) == (l)) { \
+        zero_set(f); \
+        zero_set(l); \
+    } else { \
+        (f) = (f)->next; \
+    }\
+} while (0)
+
+#define sp_sll_stack_push(f, n) sp_sll_stack_push_nz(f, n, next, sp_null_check)
+#define sp_sll_stack_pop(f) sp_sll_stack_pop_nz(f, next, sp_null_check)
+
+#define sp_sll_stack_push_nz(f, n, next, zero_check) do { \
+    if (!zero_check(f)) { \
+        (n)->next = (f); \
+    } \
+    (f) = (n); \
+} while (0)
+#define sp_sll_stack_pop_nz(f, next, zero_check) do { \
+    if (!zero_check(f)) { \
+        (f) = (f)->next; \
+    } \
+} while (0)
+
 // -- OS -----------------------------------------------------------------------
 
 SP_API void* sp_os_reserve_memory(u64 size);
