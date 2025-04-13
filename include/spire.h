@@ -232,6 +232,7 @@ SP_API u32    sp_str_cstrlen(const u8* cstr);
 SP_API char*  sp_str_to_cstr(SP_Arena* arena, SP_Str str);
 SP_API b8     sp_str_equal(SP_Str a, SP_Str b);
 SP_API SP_Str sp_str_pushf(SP_Arena* arena, const void* fmt, ...);
+SP_API SP_Str sp_str_substr(SP_Str source, u32 start, u32 end);
 
 // -- Thread context -----------------------------------------------------------
 

@@ -467,6 +467,11 @@ SP_Str sp_str_pushf(SP_Arena* arena, const void* fmt, ...) {
     return sp_str(buffer, len - 1);
 }
 
+SP_Str sp_str_substr(SP_Str source, u32 start, u32 end) {
+    sp_assert(end >= start, "Substring end must come after start.");
+    return sp_str(source.data + start, end - start);
+}
+
 // -- Hash map -----------------------------------------------------------------
 
 typedef enum _SP_HashMapBucketState {
