@@ -283,9 +283,12 @@ SP_API SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name);
 
 // -- Math ---------------------------------------------------------------------
 
-typedef struct SP_Vec2 SP_Vec2;
-struct SP_Vec2 {
-    f32 x, y;
+typedef union SP_Vec2 SP_Vec2;
+union SP_Vec2 {
+    struct {
+        f32 x, y;
+    };
+    f32 elements[2];
 };
 
 SP_INLINE SP_Vec2 sp_v2(f32 x, f32 y) { return (SP_Vec2) {x, y}; }
@@ -308,9 +311,12 @@ SP_INLINE SP_Vec2 sp_v2_normalized(SP_Vec2 vec) {
     return sp_v2_muls(vec, inv_mag);
 }
 
-typedef struct SP_Ivec2 SP_Ivec2;
-struct SP_Ivec2 {
-    i32 x, y;
+typedef union SP_Ivec2 SP_Ivec2;
+union SP_Ivec2 {
+    struct {
+        i32 x, y;
+    };
+    i32 elements[2];
 };
 
 SP_INLINE SP_Ivec2 sp_iv2(i32 x, i32 y) { return (SP_Ivec2) {x, y}; }
@@ -332,25 +338,31 @@ SP_INLINE f32 sp_iv2_magnitude(SP_Ivec2 vec) { return sqrtf(sp_iv2_magnitude_squ
 SP_INLINE SP_Vec2  sp_iv2_to_v2(SP_Ivec2 vec) { return sp_v2(vec.x, vec.y); }
 SP_INLINE SP_Ivec2 sp_v2_to_iv2(SP_Vec2 vec) { return sp_iv2(vec.x, vec.y); }
 
-typedef struct SP_Vec4 SP_Vec4;
-struct SP_Vec4 {
-    f32 x, y, z, w;
+typedef union SP_Vec4 SP_Vec4;
+union SP_Vec4 {
+    struct {
+        f32 x, y, z, w;
+    };
+    f32 elements[4];
 };
 
 SP_INLINE SP_Vec4 sp_v4(f32 x, f32 y, f32 z, f32 w) { return (SP_Vec4) {x, y, z, w}; }
 SP_INLINE SP_Vec4 sp_v4s(f32 scaler) { return (SP_Vec4) {scaler, scaler, scaler, scaler}; }
 
-typedef struct SP_Mat4 SP_Mat4;
-struct SP_Mat4 {
-    SP_Vec4 a, b, c, d;
+typedef union SP_Mat4 SP_Mat4;
+union SP_Mat4 {
+    struct {
+        SP_Vec4 a, b, c, d;
+    };
+    f32 elements[16];
 };
 
-static const SP_Mat4 SP_M4_IDENTITY = {
+static const SP_Mat4 SP_M4_IDENTITY = {{
     {1.0f, 0.0f, 0.0f, 0.0f},
     {0.0f, 1.0f, 0.0f, 0.0f},
     {0.0f, 0.0f, 1.0f, 0.0f},
     {0.0f, 0.0f, 0.0f, 1.0f},
-};
+}};
 
 SP_INLINE SP_Vec4 sp_m4_mul_vec(SP_Mat4 mat, SP_Vec4 vec) {
     return (SP_Vec4) {
@@ -371,12 +383,12 @@ SP_INLINE SP_Mat4 sp_m4_ortho_projection(f32 left, f32 right, f32 top, f32 botto
     f32 y_off = -(top+bottom) / (top-bottom);
     f32 z_off = -(far+near) / (far-near);
 
-    return (SP_Mat4) {
+    return (SP_Mat4) {{
         {x, 0, 0, x_off},
         {0, y, 0, y_off},
         {0, 0, z, z_off},
         {0, 0, 0, 1},
-    };
+    }};
 }
 
 SP_INLINE SP_Mat4 sp_m4_inv_ortho_projection(f32 left, f32 right, f32 top, f32 bottom, f32 far, f32 near) {
@@ -388,12 +400,12 @@ SP_INLINE SP_Mat4 sp_m4_inv_ortho_projection(f32 left, f32 right, f32 top, f32 b
     f32 y_off = (top+bottom) / 2.0f;
     f32 z_off = -(far+near) / 2.0f;
 
-    return (SP_Mat4) {
+    return (SP_Mat4) {{
         {x, 0, 0, x_off},
         {0, y, 0, y_off},
         {0, 0, z, z_off},
         {0, 0, 0, 1},
-    };
+    }};
 }
 
 // -- Hash map -----------------------------------------------------------------
