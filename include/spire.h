@@ -427,6 +427,7 @@ struct SP_HashMapDesc {
 SP_API SP_HashMap* sp_hm_new(SP_HashMapDesc desc);
 
 #define sp_hm_insert(MAP, KEY, VALUE) ({ \
+        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
         sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
                 "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
                 sp_hm_get_key_size(MAP), \
@@ -441,6 +442,7 @@ SP_API SP_HashMap* sp_hm_new(SP_HashMapDesc desc);
     })
 
 #define sp_hm_set(MAP, KEY, VALUE) ({ \
+        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
         sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
                 "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
                 sp_hm_get_key_size(MAP), \
@@ -457,6 +459,7 @@ SP_API SP_HashMap* sp_hm_new(SP_HashMapDesc desc);
     })
 
 #define sp_hm_get(MAP, KEY, VALUE_TYPE) ({ \
+        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
         sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
                 "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
                 sp_hm_get_key_size(MAP), \
@@ -472,6 +475,7 @@ SP_API SP_HashMap* sp_hm_new(SP_HashMapDesc desc);
     })
 
 #define sp_hm_getp(MAP, KEY) ({ \
+        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
         sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
                 "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
                 sp_hm_get_key_size(MAP), \
@@ -481,6 +485,7 @@ SP_API SP_HashMap* sp_hm_new(SP_HashMapDesc desc);
     })
 
 #define sp_hm_has(MAP, KEY) ({ \
+        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
         sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
                 "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
                 sp_hm_get_key_size(MAP), \
@@ -490,6 +495,7 @@ SP_API SP_HashMap* sp_hm_new(SP_HashMapDesc desc);
     })
 
 #define sp_hm_remove(MAP, KEY, VALUE_TYPE) ({ \
+        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
         sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
                 "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
                 sp_hm_get_key_size(MAP), \

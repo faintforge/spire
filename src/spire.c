@@ -682,6 +682,8 @@ void _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* out_value)
 // Iteration
 
 SP_HashMapIter sp_hm_iter_new(SP_HashMap* map) {
+    sp_assert(map != NULL, "Hash map must not be NULL."); \
+
     SP_HashMapIter iter = {
         .map = map,
     };
@@ -748,10 +750,12 @@ void _sp_hm_iter_get_value_impl(SP_HashMapIter iter, void* out_value) {
 }
 
 u64 sp_hm_get_key_size(const SP_HashMap* map) {
+    sp_assert(map != NULL, "Hash map must not be NULL."); \
     return map->desc.key_size;
 }
 
 u64 sp_hm_get_value_size(const SP_HashMap* map) {
+    sp_assert(map != NULL, "Hash map must not be NULL."); \
     return map->desc.value_size;
 }
 
