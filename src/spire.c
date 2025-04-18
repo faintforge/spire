@@ -677,6 +677,8 @@ void _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* out_value)
             bucket = bucket->next;
         }
     }
+
+    memset(out_value, 0, map->desc.value_size);
 }
 
 // Iteration
