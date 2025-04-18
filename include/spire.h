@@ -670,9 +670,7 @@ SP_API void  _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* ou
 #define sp_sll_stack_pop(f) sp_sll_stack_pop_nz(f, next, sp_null_check)
 
 #define sp_sll_stack_push_nz(f, n, next, zero_check) do { \
-    if (!zero_check(f)) { \
-        (n)->next = (f); \
-    } \
+    (n)->next = (f); \
     (f) = (n); \
 } while (0)
 #define sp_sll_stack_pop_nz(f, next, zero_check) do { \
