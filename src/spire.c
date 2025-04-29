@@ -875,13 +875,14 @@ SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name) {
 
 #ifdef SP_OS_WINDOWS
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 struct _SP_PlatformState {
     f32 start_time;
 };
 
-static f32 _sp_win32_time_stamp() {
+static f32 _sp_win32_time_stamp(void) {
     LARGE_INTEGER freq;
     LARGE_INTEGER time;
     QueryPerformanceFrequency(&freq);
