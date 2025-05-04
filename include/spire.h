@@ -401,10 +401,10 @@ SP_INLINE SP_Mat4 sp_m4_inv_ortho_projection(f32 left, f32 right, f32 top, f32 b
     f32 z_off = -(far+near) / 2.0f;
 
     return (SP_Mat4) {{
-        {x, 0, 0, x_off},
-        {0, y, 0, y_off},
-        {0, 0, z, z_off},
-        {0, 0, 0, 1},
+        {{x, 0, 0, x_off}},
+        {{0, y, 0, y_off}},
+        {{0, 0, z, z_off}},
+        {{0, 0, 0, 1}},
     }};
 }
 
@@ -678,6 +678,32 @@ SP_API void  _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* ou
         (f) = (f)->next; \
     } \
 } while (0)
+
+// -- Color --------------------------------------------------------------------
+
+typedef struct SP_Color SP_Color;
+struct SP_Color {
+    f32 r, g, b, a;
+};
+
+extern SP_Color sp_color_rgba_f(f32 r, f32 g, f32 b, f32 a);
+extern SP_Color sp_color_rgba_i(u8 r, u8 g, u8 b, u8 a);
+extern SP_Color sp_color_rgba_hex(u32 hex);
+extern SP_Color sp_color_rgb_f(f32 r, f32 g, f32 b);
+extern SP_Color sp_color_rgb_i(u8 r, u8 g, u8 b);
+
+extern SP_Color sp_color_rgb_hex(u32 hex);
+extern SP_Color sp_color_hsl(f32 hue, f32 saturation, f32 lightness);
+extern SP_Color sp_color_hsv(f32 hue, f32 saturation, f32 value);
+
+#define sp_color_arg(color) (color).r, (color).g, (color).b, (color).a
+
+#define SP_COLOR_WHITE ((SP_Color) {1.0f, 1.0f, 1.0f, 1.0f})
+#define SP_COLOR_BLACK ((SP_Color) {0.0f, 0.0f, 0.0f, 1.0f})
+#define SP_COLOR_RED ((SP_Color) {1.0f, 0.0f, 0.0f, 1.0f})
+#define SP_COLOR_GREEN ((SP_Color) {0.0f, 1.0f, 0.0f, 1.0f})
+#define SP_COLOR_BLUE ((SP_Color) {0.0f, 0.0f, 1.0f, 1.0f})
+#define SP_COLOR_TRANSPARENT ((SP_Color) {0.0f, 0.0f, 0.0f, 0.0f})
 
 // -- OS -----------------------------------------------------------------------
 

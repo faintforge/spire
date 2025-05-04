@@ -780,6 +780,80 @@ b8 sp_hm_helper_equal_generic(const void* a, const void* b, u64 len) {
     return memcmp(a, b, len) == 0;
 }
 
+// -- Color --------------------------------------------------------------------
+
+SP_Color sp_color_rgba_f(f32 r, f32 g, f32 b, f32 a) {
+    return (SP_Color) {r, g, b, a};
+}
+
+SP_Color sp_color_rgba_i(u8 r, u8 g, u8 b, u8 a) {
+    return (SP_Color) {r/255.0f, g/255.0f, b/255.0f, a/255.0f};
+}
+
+SP_Color sp_color_rgba_hex(u32 hex) {
+    return (SP_Color) {
+        .r = (f32) (hex >> 8 * 3 & 0xff) / 0xff,
+        .g = (f32) (hex >> 8 * 2 & 0xff) / 0xff,
+        .b = (f32) (hex >> 8 * 1 & 0xff) / 0xff,
+        .a = (f32) (hex >> 8 * 0 & 0xff) / 0xff,
+    };
+}
+
+SP_Color sp_color_rgb_f(f32 r, f32 g, f32 b) {
+    return (SP_Color) {r, g, b, 1.0f};
+}
+
+SP_Color sp_color_rgb_i(u8 r, u8 g, u8 b) {
+    return (SP_Color) {r/255.0f, g/255.0f, b/255.0f, 1.0f};
+}
+
+SP_Color sp_color_rgb_hex(u32 hex) {
+    return (SP_Color) {
+        .r = (f32) (hex >> 8 * 2 & 0xff) / 0xff,
+        .g = (f32) (hex >> 8 * 1 & 0xff) / 0xff,
+        .b = (f32) (hex >> 8 * 0 & 0xff) / 0xff,
+        .a = 1.0f,
+    };
+}
+
+SP_Color sp_color_hsl(f32 hue, f32 saturation, f32 lightness) {
+    // https://en.wikipedia.org/wiki/HSL_and_HSV#HSL_to_RGB
+    SP_Color color = {0};
+    f32 chroma = (1 - fabsf(2 * lightness - 1)) * saturation;
+    f32 hue_prime = fabsf(fmodf(hue, 360.0f)) / 60.0f;
+    f32 x = chroma * (1.0f - fabsf(fmodf(hue_prime, 2.0f) - 1.0f));
+    if (hue_prime < 1.0f) { color = (SP_Color) { chroma, x, 0.0f, 1.0f, }; }
+    else if (hue_prime < 2.0f) { color = (SP_Color) { x, chroma, 0.0f, 1.0f, }; }
+    else if (hue_prime < 3.0f) { color = (SP_Color) { 0.0f, chroma, x, 1.0f, }; }
+    else if (hue_prime < 4.0f) { color = (SP_Color) { 0.0f, x, chroma, 1.0f, }; }
+    else if (hue_prime < 5.0f) { color = (SP_Color) { x, 0.0f, chroma, 1.0f, }; }
+    else if (hue_prime < 6.0f) { color = (SP_Color) { chroma, 0.0f, x, 1.0f, }; }
+    f32 m = lightness-chroma / 2.0f;
+    color.r += m;
+    color.g += m;
+    color.b += m;
+    return color;
+}
+
+SP_Color sp_color_hsv(f32 hue, f32 saturation, f32 value) {
+    // https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB
+    SP_Color color = {0};
+    f32 chroma = value * saturation;
+    f32 hue_prime = fabsf(fmodf(hue, 360.0f)) / 60.0f;
+    f32 x = chroma * (1.0f - fabsf(fmodf(hue_prime, 2.0f) - 1.0f));
+    if (hue_prime < 1.0f) { color = (SP_Color) { chroma, x, 0.0f, 1.0f, }; }
+    else if (hue_prime < 2.0f) { color = (SP_Color) { x, chroma, 0.0f, 1.0f, }; }
+    else if (hue_prime < 3.0f) { color = (SP_Color) { 0.0f, chroma, x, 1.0f, }; }
+    else if (hue_prime < 4.0f) { color = (SP_Color) { 0.0f, x, chroma, 1.0f, }; }
+    else if (hue_prime < 5.0f) { color = (SP_Color) { x, 0.0f, chroma, 1.0f, }; }
+    else if (hue_prime < 6.0f) { color = (SP_Color) { chroma, 0.0f, x, 1.0f, }; }
+    f32 m = value - chroma;
+    color.r += m;
+    color.g += m;
+    color.b += m;
+    return color;
+}
+
 // -- OS -----------------------------------------------------------------------
 // Platform specific implementation
 // :platform
