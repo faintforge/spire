@@ -1,21 +1,41 @@
 cmake_minimum_required(VERSION 3.16)
-project(spire LANGUAGES C)
+project(spire VERSION 0.1 LANGUAGES C)
 
 add_library(${PROJECT_NAME} STATIC src/spire.c)
 
 target_include_directories(spire
-    PUBLIC  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/>"
-    PRIVATE "src/"
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-set_target_properties(spire PROPERTIES
-    C_STANDARD 99
-    C_STANDARD_REQUIRED false
-    C_EXTENSIONS false
+target_compile_features(spire PUBLIC c_std_99)
+target_compile_options(spire
+    PRIVATE
+        $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+        $<$<C_COMPILER_ID:MSVC>:/W4>
 )
 
-if (MSVC)
-    add_compile_options("/W4")
-else ()
-    add_compile_options("-Wall -Wextra -Wpedantic")
+find_library(MATH_LIB m)
+if (MATH_LIB)
+    target_link_libraries(spire PUBLIC ${MATH_LIB})
 endif ()
+
+include(GNUInstallDirs)
+
+install(TARGETS spire
+    EXPORT spireTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+install(EXPORT spireTargets
+    FILE spireTargets.cmake
+    NAMESPACE spire::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spire
+)

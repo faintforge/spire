@@ -291,8 +291,8 @@ union SP_Vec2 {
     f32 elements[2];
 };
 
-SP_INLINE SP_Vec2 sp_v2(f32 x, f32 y) { return (SP_Vec2) {x, y}; }
-SP_INLINE SP_Vec2 sp_v2s(f32 scaler) { return (SP_Vec2) {scaler, scaler}; }
+SP_INLINE SP_Vec2 sp_v2(f32 x, f32 y) { return (SP_Vec2) {{x, y}}; }
+SP_INLINE SP_Vec2 sp_v2s(f32 scaler) { return (SP_Vec2) {{scaler, scaler}}; }
 
 SP_INLINE SP_Vec2 sp_v2_add(SP_Vec2 a, SP_Vec2 b) { return sp_v2(a.x + b.x, a.y + b.y); }
 SP_INLINE SP_Vec2 sp_v2_sub(SP_Vec2 a, SP_Vec2 b) { return sp_v2(a.x - b.x, a.y - b.y); }
@@ -319,8 +319,8 @@ union SP_Ivec2 {
     i32 elements[2];
 };
 
-SP_INLINE SP_Ivec2 sp_iv2(i32 x, i32 y) { return (SP_Ivec2) {x, y}; }
-SP_INLINE SP_Ivec2 sp_iv2s(i32 scaler) { return (SP_Ivec2) {scaler, scaler}; }
+SP_INLINE SP_Ivec2 sp_iv2(i32 x, i32 y) { return (SP_Ivec2) {{x, y}}; }
+SP_INLINE SP_Ivec2 sp_iv2s(i32 scaler) { return (SP_Ivec2) {{scaler, scaler}}; }
 
 SP_INLINE SP_Ivec2 sp_iv2_add(SP_Ivec2 a, SP_Ivec2 b) { return sp_iv2(a.x + b.x, a.y + b.y); }
 SP_INLINE SP_Ivec2 sp_iv2_sub(SP_Ivec2 a, SP_Ivec2 b) { return sp_iv2(a.x - b.x, a.y - b.y); }
@@ -346,8 +346,8 @@ union SP_Vec4 {
     f32 elements[4];
 };
 
-SP_INLINE SP_Vec4 sp_v4(f32 x, f32 y, f32 z, f32 w) { return (SP_Vec4) {x, y, z, w}; }
-SP_INLINE SP_Vec4 sp_v4s(f32 scaler) { return (SP_Vec4) {scaler, scaler, scaler, scaler}; }
+SP_INLINE SP_Vec4 sp_v4(f32 x, f32 y, f32 z, f32 w) { return (SP_Vec4) {{x, y, z, w}}; }
+SP_INLINE SP_Vec4 sp_v4s(f32 scaler) { return (SP_Vec4) {{scaler, scaler, scaler, scaler}}; }
 
 typedef union SP_Mat4 SP_Mat4;
 union SP_Mat4 {
@@ -358,19 +358,19 @@ union SP_Mat4 {
 };
 
 static const SP_Mat4 SP_M4_IDENTITY = {{
-    {1.0f, 0.0f, 0.0f, 0.0f},
-    {0.0f, 1.0f, 0.0f, 0.0f},
-    {0.0f, 0.0f, 1.0f, 0.0f},
-    {0.0f, 0.0f, 0.0f, 1.0f},
+    {{1.0f, 0.0f, 0.0f, 0.0f}},
+    {{0.0f, 1.0f, 0.0f, 0.0f}},
+    {{0.0f, 0.0f, 1.0f, 0.0f}},
+    {{0.0f, 0.0f, 0.0f, 1.0f}},
 }};
 
 SP_INLINE SP_Vec4 sp_m4_mul_vec(SP_Mat4 mat, SP_Vec4 vec) {
-    return (SP_Vec4) {
+    return (SP_Vec4) {{
         vec.x*mat.a.x + vec.y*mat.a.y + vec.z*mat.a.z + vec.w*mat.a.w,
         vec.x*mat.b.x + vec.y*mat.b.y + vec.z*mat.b.z + vec.w*mat.b.w,
         vec.x*mat.c.x + vec.y*mat.c.y + vec.z*mat.c.z + vec.w*mat.c.w,
         vec.x*mat.d.x + vec.y*mat.d.y + vec.z*mat.d.z + vec.w*mat.d.w,
-    };
+    }};
 }
 
 // https://en.wikipedia.org/wiki/Orthographic_projection#Geometry
@@ -384,10 +384,10 @@ SP_INLINE SP_Mat4 sp_m4_ortho_projection(f32 left, f32 right, f32 top, f32 botto
     f32 z_off = -(far+near) / (far-near);
 
     return (SP_Mat4) {{
-        {x, 0, 0, x_off},
-        {0, y, 0, y_off},
-        {0, 0, z, z_off},
-        {0, 0, 0, 1},
+        {{x, 0, 0, x_off}},
+        {{0, y, 0, y_off}},
+        {{0, 0, z, z_off}},
+        {{0, 0, 0, 1}},
     }};
 }
 
