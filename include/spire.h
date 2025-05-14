@@ -427,86 +427,40 @@ struct SP_HashMapDesc {
 SP_API SP_HashMap* sp_hm_new(SP_HashMapDesc desc);
 
 #define sp_hm_insert(MAP, KEY, VALUE) ({ \
-        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
-        sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
-                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
-                sp_hm_get_key_size(MAP), \
-                sizeof(__typeof__(KEY))); \
-        sp_assert(sizeof(__typeof__(VALUE)) == sp_hm_get_value_size(MAP), \
-                "Hash map value size does not match with the size of the provided value. Expected %llu got %llu.", \
-                sp_hm_get_value_size(MAP), \
-                sizeof(__typeof__(VALUE))); \
         __typeof__(KEY) _key = (KEY); \
         __typeof__(VALUE) _value = (VALUE); \
-        _sp_hash_map_insert_impl((MAP), &_key, &_value); \
+        _sp_hash_map_insert_impl((MAP), &_key, sizeof(_key), &_value, sizeof(_value)); \
     })
 
 #define sp_hm_set(MAP, KEY, VALUE) ({ \
-        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
-        sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
-                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
-                sp_hm_get_key_size(MAP), \
-                sizeof(__typeof__(KEY))); \
-        sp_assert(sizeof(__typeof__(VALUE)) == sp_hm_get_value_size(MAP), \
-                "Hash map value size does not match with the size of the provided value. Expected %llu got %llu.", \
-                sp_hm_get_value_size(MAP), \
-                sizeof(__typeof__(VALUE))); \
         __typeof__(KEY) _key = (KEY); \
         __typeof__(VALUE) _value = (VALUE); \
         __typeof__(VALUE) prev_value; \
-        _sp_hash_map_set_impl((MAP), &_key, &_value, &prev_value); \
+        _sp_hash_map_set_impl((MAP), &_key, sizeof(_key), &_value, sizeof(_value), &prev_value); \
         prev_value; \
     })
 
 #define sp_hm_get(MAP, KEY, VALUE_TYPE) ({ \
-        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
-        sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
-                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
-                sp_hm_get_key_size(MAP), \
-                sizeof(__typeof__(KEY))); \
-        sp_assert(sizeof(VALUE_TYPE) == sp_hm_get_value_size(MAP), \
-                "Hash map value size does not match with the size of the provided value type. Expected %llu got %llu.", \
-                sp_hm_get_value_size(MAP), \
-                sizeof(VALUE_TYPE)); \
         __typeof__(KEY) _key = (KEY); \
         VALUE_TYPE value; \
-        _sp_hash_map_get_impl((MAP), &_key, &value); \
+        _sp_hash_map_get_impl((MAP), &_key, sizeof(_key), &value, sizeof(value)); \
         value; \
     })
 
 #define sp_hm_getp(MAP, KEY) ({ \
-        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
-        sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
-                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
-                sp_hm_get_key_size(MAP), \
-                sizeof(__typeof__(KEY))); \
         __typeof__(KEY) _key = (KEY); \
-        _sp_hash_map_getp_impl((MAP), &_key); \
+        _sp_hash_map_getp_impl((MAP), &_key, sizeof(_key)); \
     })
 
 #define sp_hm_has(MAP, KEY) ({ \
-        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
-        sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
-                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
-                sp_hm_get_key_size(MAP), \
-                sizeof(__typeof__(KEY))); \
         __typeof__(KEY) _key = (KEY); \
-        _sp_hash_map_has_impl((MAP), &_key); \
+        _sp_hash_map_has_impl((MAP), &_key, sizeof(_key)); \
     })
 
 #define sp_hm_remove(MAP, KEY, VALUE_TYPE) ({ \
-        sp_assert((MAP) != NULL, "Hash map must not be NULL."); \
-        sp_assert(sizeof(__typeof__(KEY)) == sp_hm_get_key_size(MAP), \
-                "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.", \
-                sp_hm_get_key_size(MAP), \
-                sizeof(__typeof__(KEY))); \
-        sp_assert(sizeof(VALUE_TYPE) == sp_hm_get_value_size(MAP), \
-                "Hash map value size does not match with the size of the provided value type. Expected %llu got %llu.", \
-                sp_hm_get_value_size(MAP), \
-                sizeof(VALUE_TYPE)); \
         __typeof__(KEY) _key = (KEY); \
         VALUE_TYPE value; \
-        _sp_hash_map_remove_impl((MAP), &_key, &value); \
+        _sp_hash_map_remove_impl((MAP), &_key, sizeof(_key), &value, sizeof(value)); \
         value; \
     })
 
@@ -566,12 +520,12 @@ SP_API b8  sp_hm_helper_equal_generic(const void* a, const void* b, u64 len);
     })
 
 
-SP_API b8    _sp_hash_map_insert_impl(SP_HashMap* map, const void* key, const void* value);
-SP_API void  _sp_hash_map_set_impl(SP_HashMap* map, const void* key, const void* value, void* out_prev_value);
-SP_API void  _sp_hash_map_get_impl(SP_HashMap* map, const void* key, void* out_value);
-SP_API void* _sp_hash_map_getp_impl(SP_HashMap* map, const void* key);
-SP_API b8    _sp_hash_map_has_impl(SP_HashMap* map, const void* key);
-SP_API void  _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* out_value);
+SP_API b8    _sp_hash_map_insert_impl(SP_HashMap* map, const void* key, u64 key_size, const void* value, u64 value_size);
+SP_API void  _sp_hash_map_set_impl(SP_HashMap* map, const void* key, u64 key_size, const void* value, u64 value_size, void* out_prev_value);
+SP_API void  _sp_hash_map_get_impl(SP_HashMap* map, const void* key, u64 key_size, void* out_value, u64 value_size);
+SP_API void* _sp_hash_map_getp_impl(SP_HashMap* map, const void* key, u64 key_size);
+SP_API b8    _sp_hash_map_has_impl(SP_HashMap* map, const void* key, u64 key_size);
+SP_API void  _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, u64 key_size, void* out_value, u64 value_size);
 
 // -- Linked lists -------------------------------------------------------------
 

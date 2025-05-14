@@ -16,7 +16,7 @@ target_include_directories(spire
 target_compile_features(spire PUBLIC c_std_99)
 target_compile_options(spire
     PRIVATE
-        $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+        $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra>
         $<$<C_COMPILER_ID:MSVC>:/W4>
 )
 

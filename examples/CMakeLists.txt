@@ -6,7 +6,7 @@ function(add_example name sources)
     target_compile_features(${name} PRIVATE c_std_99)
     target_compile_options(${name}
         PRIVATE
-            $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>
+            $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra>
             $<$<C_COMPILER_ID:MSVC>:/W4>
     )
     target_link_libraries(${name} PRIVATE spire)

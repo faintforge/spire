@@ -18,8 +18,12 @@ i32 main(void) {
     i32* foo = sp_hm_getp(map, sp_str_lit("foo"));
     sp_info("foo = %p, *foo = %d", foo, *foo);
 
+    sp_info("map contains foo: %s", sp_hm_has(map, sp_str_lit("foo")) ? "true" : "false");
+
     i32 removed = sp_hm_remove(map, sp_str_lit("foo"), i32);
     sp_info("removed (foo) = %d", removed);
+
+    sp_info("map contains foo: %s", sp_hm_has(map, sp_str_lit("foo")) ? "true" : "false");
 
     i32 non_existant = sp_hm_get(map, sp_str_lit("foo"), i32);
     sp_info("non_existant = %d", non_existant);

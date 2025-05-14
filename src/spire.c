@@ -504,7 +504,17 @@ SP_HashMap* sp_hm_new(SP_HashMapDesc desc) {
     return map;
 }
 
-b8 _sp_hash_map_insert_impl(SP_HashMap* map, const void* key, const void* value) {
+b8 _sp_hash_map_insert_impl(SP_HashMap* map, const void* key, u64 key_size, const void* value, u64 value_size) {
+    sp_assert(map != NULL, "Hash map must not be NULL.");
+    sp_assert(key_size == sp_hm_get_key_size(map),
+            "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.",
+            sp_hm_get_key_size(map),
+            key_size);
+    sp_assert(value_size == sp_hm_get_value_size(map),
+            "Hash map value size does not match with the size of the provided value. Expected %llu got %llu.",
+            sp_hm_get_value_size(map),
+            value_size);
+
     u64 hash = map->desc.hash(key, map->desc.key_size);
     u32 index = hash % map->desc.capacity;
 
@@ -547,7 +557,17 @@ b8 _sp_hash_map_insert_impl(SP_HashMap* map, const void* key, const void* value)
     return true;
 }
 
-void _sp_hash_map_set_impl(SP_HashMap* map, const void* key, const void* value, void* out_prev_value) {
+void _sp_hash_map_set_impl(SP_HashMap* map, const void* key, u64 key_size, const void* value, u64 value_size, void* out_prev_value) {
+    sp_assert(map != NULL, "Hash map must not be NULL.");
+    sp_assert(key_size == sp_hm_get_key_size(map),
+            "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.",
+            sp_hm_get_key_size(map),
+            key_size);
+    sp_assert(value_size == sp_hm_get_value_size(map),
+            "Hash map value size does not match with the size of the provided value. Expected %llu got %llu.",
+            sp_hm_get_value_size(map),
+            value_size);
+
     u64 hash = map->desc.hash(key, map->desc.key_size);
     u32 index = hash % map->desc.capacity;
 
@@ -598,7 +618,17 @@ void _sp_hash_map_set_impl(SP_HashMap* map, const void* key, const void* value, 
     memcpy(bucket->value, value, map->desc.value_size);
 }
 
-void _sp_hash_map_get_impl(SP_HashMap* map, const void* key, void* out_value) {
+void _sp_hash_map_get_impl(SP_HashMap* map, const void* key, u64 key_size, void* out_value, u64 value_size) {
+    sp_assert(map != NULL, "Hash map must not be NULL.");
+    sp_assert(key_size == sp_hm_get_key_size(map),
+            "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.",
+            sp_hm_get_key_size(map),
+            key_size);
+    sp_assert(value_size == sp_hm_get_value_size(map),
+            "Hash map value size does not match with the size of the provided value. Expected %llu got %llu.",
+            sp_hm_get_value_size(map),
+            value_size);
+
     u64 hash = map->desc.hash(key, map->desc.key_size);
     u32 index = hash % map->desc.capacity;
 
@@ -616,7 +646,13 @@ void _sp_hash_map_get_impl(SP_HashMap* map, const void* key, void* out_value) {
     memset(out_value, 0, map->desc.value_size);
 }
 
-void* _sp_hash_map_getp_impl(SP_HashMap* map, const void* key) {
+void* _sp_hash_map_getp_impl(SP_HashMap* map, const void* key, u64 key_size) {
+    sp_assert(map != NULL, "Hash map must not be NULL.");
+    sp_assert(key_size == sp_hm_get_key_size(map),
+            "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.",
+            sp_hm_get_key_size(map),
+            key_size);
+
     u64 hash = map->desc.hash(key, map->desc.key_size);
     u32 index = hash % map->desc.capacity;
 
@@ -633,7 +669,13 @@ void* _sp_hash_map_getp_impl(SP_HashMap* map, const void* key) {
     return NULL;
 }
 
-b8 _sp_hash_map_has_impl(SP_HashMap* map, const void* key) {
+b8 _sp_hash_map_has_impl(SP_HashMap* map, const void* key, u64 key_size) {
+    sp_assert(map != NULL, "Hash map must not be NULL.");
+    sp_assert(key_size == sp_hm_get_key_size(map),
+            "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.",
+            sp_hm_get_key_size(map),
+            key_size);
+
     u64 hash = map->desc.hash(key, map->desc.key_size);
     u32 index = hash % map->desc.capacity;
 
@@ -649,7 +691,17 @@ b8 _sp_hash_map_has_impl(SP_HashMap* map, const void* key) {
     return false;
 }
 
-void _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* out_value) {
+void _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, u64 key_size, void* out_value, u64 value_size) {
+    sp_assert(map != NULL, "Hash map must not be NULL.");
+    sp_assert(key_size == sp_hm_get_key_size(map),
+            "Hash map key size does not match with the size of the provided key type. Expected %llu got %llu.",
+            sp_hm_get_key_size(map),
+            key_size);
+    sp_assert(value_size == sp_hm_get_value_size(map),
+            "Hash map value size does not match with the size of the provided value. Expected %llu got %llu.",
+            sp_hm_get_value_size(map),
+            value_size);
+
     u64 hash = map->desc.hash(key, map->desc.key_size);
     u32 index = hash % map->desc.capacity;
 
@@ -657,7 +709,9 @@ void _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* out_value)
     if (bucket->state == _SP_HASH_MAP_BUCKET_STATE_ALIVE) {
         while (bucket != NULL) {
             if (map->desc.equal(key, bucket->key, map->desc.key_size)) {
-                memcpy(out_value, bucket->value, map->desc.value_size);
+                if (out_value != NULL) {
+                    memcpy(out_value, bucket->value, map->desc.value_size);
+                }
                 if (bucket->prev != NULL) {
                     bucket->prev->next = bucket->next;
                 } else {
@@ -678,7 +732,9 @@ void _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, void* out_value)
         }
     }
 
-    memset(out_value, 0, map->desc.value_size);
+    if (out_value != NULL) {
+        memset(out_value, 0, map->desc.value_size);
+    }
 }
 
 // Iteration
