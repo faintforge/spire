@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(spire VERSION 0.1 LANGUAGES C)
 
+option(SPIRE_BUILD_EXAMPLES "Build examples" false)
+
 add_library(${PROJECT_NAME} STATIC src/spire.c)
 
 target_include_directories(spire
@@ -39,3 +41,7 @@ install(EXPORT spireTargets
     NAMESPACE spire::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spire
 )
+
+if (SPIRE_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif ()
