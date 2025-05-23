@@ -26,9 +26,9 @@ static _SP_State _sp_state = {0};
 static SP_Config _config_set_defaults(SP_Config config) {
     if (config.default_arena_desc.block_size == 0) {
         if (config.default_arena_desc.virtual_memory) {
-            config.default_arena_desc.block_size = sp_gb(4);
+            config.default_arena_desc.block_size = sp_gib(4);
         } else {
-            config.default_arena_desc.block_size = sp_mb(4);
+            config.default_arena_desc.block_size = sp_mib(4);
         }
     }
 

@@ -1,3 +1,24 @@
+// =============================================================================
+//
+// Spire is a core/utility library built around arena allocators.
+//
+// FEATURES:
+// - Utils
+// - Arena allocator
+// - Length based strings
+// - Logging
+// - Math
+// - Hash map
+// - Linked list macros
+// - Color
+// - OS abstraction layer
+//      - Memory management
+//      - Time
+//      - Page size
+//      - Dynamic library
+//
+// =============================================================================
+
 #ifndef SPIRE_H_
 #define SPIRE_H_ 1
 
@@ -101,7 +122,7 @@ typedef u32 b32;
 #define NULL ((void*) 0)
 #endif // NULL
 
-// -----------------------------------------------------------------------------
+// =============================================================================
 
 typedef struct SP_ArenaDesc SP_ArenaDesc;
 struct SP_ArenaDesc {
@@ -144,23 +165,43 @@ SP_API b8 sp_terminate(void);
 
 SP_API void sp_dump_arena_metrics(void);
 
-// -- Utils --------------------------------------------------------------------
+// =============================================================================
+// UTILS
+//
+// The utility functions are just misc functions that don't fit into any section
+// and don't deserve their own.
+// =============================================================================
 
-#define sp_kb(V) ((u64) (V) << 10)
-#define sp_mb(V) ((u64) (V) << 20)
-#define sp_gb(V) ((u64) (V) << 30)
+// Byte size conversions. These function in powers of two.
+#define sp_kib(V) ((u64) (V) << 10)
+#define sp_mib(V) ((u64) (V) << 20)
+#define sp_gib(V) ((u64) (V) << 30)
 
+// Returns the smaller of A and B.
 #define sp_min(A, B) ((A) > (B) ? (B) : (A))
+
+// Returns the larget of A and B.
 #define sp_max(A, B) ((A) > (B) ? (A) : (B))
+
+// Make it so V never becomes smaller than MIN and larger than MAX.
 #define sp_clamp(V, MIN, MAX) ((V) < (MIN) ? (MIN) : (V) > (MAX) ? (MAX) : (V))
 
+// Length or stack allocated array.
+// **DOES NOT WORK FOR HEAP ALLOCATED ARRAYS**
+// Usage:
+//      int arr[16];
+//      sp_arrlen(arr);
 #define sp_arrlen(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
+
+// Byte offset of struct member.
 #define sp_offset(S, M) ((u64) &((S*) 0)->M)
 
+// Simple hashing function. Not the most efficient or causes the least
+// collisions but it's small.
 SP_API u64 sp_fvn1a_hash(const void* data, u64 len);
 
-// Must supply a message printf style formatted string as the first variadic
-// argument.
+// Ensure some condition is always true. If it's not, print a message and
+// segfault. A message must always be supplied as the first variadic argument.
 #define sp_ensure(COND, ...) do { \
     if (!(COND)) {\
         sp_fatal(__VA_ARGS__); \
@@ -168,35 +209,73 @@ SP_API u64 sp_fvn1a_hash(const void* data, u64 len);
     } \
 } while (0)
 
-// Must supply a message printf style formatted string as the first variadic
-// argument.
 #ifdef SP_DEBUG
+// Same as sp_ensure but only runs in debug builds.
 #define sp_assert(COND, ...) sp_ensure(COND, __VA_ARGS__)
 #else // SP_DEBUG
+// Same as sp_ensure but only runs in debug builds.
 #define sp_assert(cond, ...)
 #endif // SP_DEBUG
 
-// -- String -------------------------------------------------------------------
+// =============================================================================
+// ARENA ALLOCATOR
+//
+// An arena allocator could be thought of as a stack. It's an allocation
+// strategy similar to the stack.
+//
+// Learn more about arenas:
+// - Article: https://www.rfleury.com/p/untangling-lifetimes-the-arena-allocator
+// - Talk: https://www.youtube.com/watch?v=TZ5a3gCCZYo
+// =============================================================================
 
+// Length based string.
+//
+// It's defined here instead of at the string section
+// because some arena functions need it.
 typedef struct SP_Str SP_Str;
 struct SP_Str {
     const u8* data;
     u32 len;
 };
 
-// -- Arena --------------------------------------------------------------------
-
 typedef struct SP_Arena SP_Arena;
 
+// Create a default configured arena as specified when sp_init was called.
 SP_API SP_Arena* sp_arena_create(void);
 SP_API SP_Arena* sp_arena_create_configurable(SP_ArenaDesc desc);
-SP_API void      sp_arena_destroy(SP_Arena* arena);
-SP_API void*     sp_arena_push(SP_Arena* arena, u64 size);
-SP_API void*     sp_arena_push_no_zero(SP_Arena* arena, u64 size);
-SP_API void      sp_arena_pop(SP_Arena* arena, u64 size);
-SP_API void      sp_arena_pop_to(SP_Arena* arena, u64 pos);
-SP_API void      sp_arena_clear(SP_Arena* arena);
-SP_API u64       sp_arena_get_pos(const SP_Arena* arena);
+
+// Free memory allocated by arena.
+SP_API void sp_arena_destroy(SP_Arena* arena);
+
+// Allocate 'size' bytes on the arena. If there isn't enough memory on the arena
+// and 'chaining' or 'virtual_memory' is set at arena creation, the memory
+// region will expand.
+//
+// Returns a pointer to some zero-initialized memory on the arena.
+//
+// This call will crash the application if:
+// - 'block_size' is reached on a 'virtual_memory' arena
+// - 'size' exceeds 'block_size'
+// - arena runs out of memory in a non chained arena
+SP_API void* sp_arena_push(SP_Arena* arena, u64 size);
+
+// Same as 'sp_arena_push' but without zero-initialization on the memory
+// returned.
+SP_API void* sp_arena_push_no_zero(SP_Arena* arena, u64 size);
+
+// Pop 'size' bytes off of the arena.
+SP_API void sp_arena_pop(SP_Arena* arena, u64 size);
+
+// Pop to a certain position in the arena.
+SP_API void sp_arena_pop_to(SP_Arena* arena, u64 pos);
+
+// Clear all memory pushed onto the arena.
+SP_API void sp_arena_clear(SP_Arena* arena);
+
+// Returns the position of the arena cursor. This also indicates how much memory
+// is currently used. All arena information is stored in itself so this should
+// never return 0.
+SP_API u64 sp_arena_get_pos(const SP_Arena* arena);
 
 typedef struct SP_ArenaMetrics SP_ArenaMetrics;
 struct SP_ArenaMetrics {
@@ -210,8 +289,19 @@ struct SP_ArenaMetrics {
     u64 total_popped_bytes;
 };
 
-SP_API void            sp_arena_tag(SP_Arena* arena, SP_Str tag);
+// Gives an arena a 'tag' which makes arenas easier to recognize when debugging.
+SP_API void sp_arena_tag(SP_Arena* arena, SP_Str tag);
+
+// Get usage metrics of an arena.
 SP_API SP_ArenaMetrics sp_arena_get_metrics(const SP_Arena* arena);
+
+// =============================================================================
+// TEMPORARY ARENA
+//
+// A temporary arena is a snapshot of the current arena usage when 'begin' is
+// called. When the temporary arena isn't needed, calling 'end' will pop off all
+// the newly pushed bytes. This could be seen as a sort of stack.
+// =============================================================================
 
 typedef struct SP_Temp SP_Temp;
 struct SP_Temp {
@@ -222,19 +312,47 @@ struct SP_Temp {
 SP_API SP_Temp sp_temp_begin(SP_Arena* arena);
 SP_API void    sp_temp_end(SP_Temp temp);
 
-// -- String -------------------------------------------------------------------
+// =============================================================================
+// STRINGS
+//
+// Length based strings.
+// =============================================================================
 
-#define sp_str_lit(STR_LIT) sp_str((const u8*) (STR_LIT), sizeof(STR_LIT) - 1)
-#define sp_cstr(CSTR) sp_str((const u8*) (CSTR), sp_str_cstrlen((const u8*) (CSTR)))
+// Create a string from a string literal ("this kind of string").
+#define sp_str_lit(STR_LIT) ((SP_Str) {(const u8*) (STR_LIT), sizeof(STR_LIT) - 1})
+
+// Create a string from a null termianted string.
+#define sp_cstr(CSTR) ((SP_Str) {(const u8*) (CSTR), sp_str_cstrlen((const u8*) (CSTR))})
 
 SP_API SP_Str sp_str(const u8* data, u32 len);
-SP_API u32    sp_str_cstrlen(const u8* cstr);
-SP_API char*  sp_str_to_cstr(SP_Arena* arena, SP_Str str);
-SP_API b8     sp_str_equal(SP_Str a, SP_Str b);
+SP_API b8 sp_str_equal(SP_Str a, SP_Str b);
+
+// Convert a string into a null termianted string.
+SP_API char* sp_str_to_cstr(SP_Arena* arena, SP_Str str);
+
+// Push a formatted string onto an arena. The 'fmt' arg is a printf style
+// formatting string.
 SP_API SP_Str sp_str_pushf(SP_Arena* arena, const void* fmt, ...);
+
+// Returns a substring of 'source'.
+// Includes the 'start' index.
+// Excludes the 'end' index.
 SP_API SP_Str sp_str_substr(SP_Str source, u32 start, u32 end);
 
-// -- Thread context -----------------------------------------------------------
+// Calculate the length of a null termianted string.
+// This function only exists as to not bring in the 'string.h' header because of
+// the 'sp_cstr' macro.
+SP_API u32 sp_str_cstrlen(const u8* cstr);
+
+// =============================================================================
+// THREAD CONTEXT
+//
+// The thread context provides per thread scratch arenas. These functions should
+// rarely be used. They're used during initialization.
+//
+// Currently threading isn't implemented, so creating and setting a context per
+// new thread needs to be done manually, for now.
+// =============================================================================
 
 typedef struct SP_ThreadCtx SP_ThreadCtx;
 
@@ -242,14 +360,37 @@ SP_API SP_ThreadCtx* sp_thread_ctx_create(void);
 SP_API void          sp_thread_ctx_destroy(SP_ThreadCtx* ctx);
 SP_API void          sp_thread_ctx_set(SP_ThreadCtx* ctx);
 
-// -- Scratch arena ------------------------------------------------------------
+// =============================================================================
+// SCRATCH ARENA
+//
+// Scratch arenas are per thread temporary arenas. They're useful when you need
+// to dynamically allocate something *during* an operation, but not need it to
+// be persistant.
+// =============================================================================
 
 typedef SP_Temp SP_Scratch;
 
 SP_API SP_Scratch sp_scratch_begin(SP_Arena* const* conflicts, u32 count);
 SP_API void       sp_scratch_end(SP_Scratch scratch);
 
-// -- Logging ------------------------------------------------------------------
+// =============================================================================
+// LOGGING
+//
+// This is a very bare bones logging system right now. It only supports printing
+// to stdout with some extra nice information like file and line.
+//
+// Log format:
+// TYPE file:line: message
+// =============================================================================
+
+// All macros work the same, only with a different log level. The first argument
+// ALWAYS needs to be a printf style format string.
+#define sp_fatal(...) _sp_log_internal(SP_LOG_LEVEL_FATAL, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_error(...) _sp_log_internal(SP_LOG_LEVEL_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_warn(...) _sp_log_internal(SP_LOG_LEVEL_WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_info(...) _sp_log_internal(SP_LOG_LEVEL_INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_debug(...) _sp_log_internal(SP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define sp_trace(...) _sp_log_internal(SP_LOG_LEVEL_TRACE, __FILE__, __LINE__, __VA_ARGS__)
 
 typedef enum SP_LogLevel {
     SP_LOG_LEVEL_FATAL,
@@ -262,26 +403,17 @@ typedef enum SP_LogLevel {
     SP_LOG_LEVEL_COUNT,
 } SP_LogLevel;
 
-#define sp_fatal(...) _sp_log_internal(SP_LOG_LEVEL_FATAL, __FILE__, __LINE__, __VA_ARGS__)
-#define sp_error(...) _sp_log_internal(SP_LOG_LEVEL_ERROR, __FILE__, __LINE__, __VA_ARGS__)
-#define sp_warn(...) _sp_log_internal(SP_LOG_LEVEL_WARN, __FILE__, __LINE__, __VA_ARGS__)
-#define sp_info(...) _sp_log_internal(SP_LOG_LEVEL_INFO, __FILE__, __LINE__, __VA_ARGS__)
-#define sp_debug(...) _sp_log_internal(SP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
-#define sp_trace(...) _sp_log_internal(SP_LOG_LEVEL_TRACE, __FILE__, __LINE__, __VA_ARGS__)
-
+// Internal function. You can call it manually if you want, it's just cumbersome
+// to do so.
 SP_API void _sp_log_internal(SP_LogLevel level, const char* file, u32 line, const char* msg, ...);
 
-// -- Library ------------------------------------------------------------------
-
-typedef struct SP_Lib SP_Lib;
-
-typedef void (*SP_LibFunc)(void);
-
-SP_API SP_Lib*    sp_lib_load(SP_Arena* arena, const char* filename);
-SP_API void       sp_lib_unload(SP_Lib* lib);
-SP_API SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name);
-
-// -- Math ---------------------------------------------------------------------
+// =============================================================================
+// MATH
+//
+// This part provides some nice linear algebra functions. It's very much NOT
+// complete and is missing A LOT of features. Functions get added as they are
+// needed which explains the strange function spread.
+// =============================================================================
 
 typedef union SP_Vec2 SP_Vec2;
 union SP_Vec2 {
@@ -408,7 +540,12 @@ SP_INLINE SP_Mat4 sp_m4_inv_ortho_projection(f32 left, f32 right, f32 top, f32 b
     }};
 }
 
-// -- Hash map -----------------------------------------------------------------
+// =============================================================================
+// HASH MAP
+//
+// The hash map implementation is optimized around arenas. It uses separate
+// chaining as its collision resolution strategy.
+// =============================================================================
 
 typedef struct SP_HashMap SP_HashMap;
 
@@ -527,7 +664,29 @@ SP_API void* _sp_hash_map_getp_impl(SP_HashMap* map, const void* key, u64 key_si
 SP_API b8    _sp_hash_map_has_impl(SP_HashMap* map, const void* key, u64 key_size);
 SP_API void  _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, u64 key_size, void* out_value, u64 value_size);
 
-// -- Linked lists -------------------------------------------------------------
+// =============================================================================
+// LINKED LISTS
+//
+// A set of macros to help with:
+// - Doubly linked lists
+// - Queue (Singly linked list)
+// - Stack (Singly linked list)
+//
+// All these macros expect a struct with a next, and prev if it's a doubly
+// linked list macro, but this can be changed by using the *_npz or *_nz macros.
+//
+// Usage:
+// typedef struct Node Node;
+// struct Node {
+//     Node* next;
+//     i32 value;
+// };
+// ...
+// Node* first = NULL;
+// Node* last = NULL;
+// Node node = {.value = 32};
+// sp_sll_queue_push(first, last, &node);
+// =============================================================================
 
 #define sp_null_set(p) ((p) = 0)
 #define sp_null_check(p) ((p) == 0)
@@ -633,7 +792,11 @@ SP_API void  _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, u64 key_
     } \
 } while (0)
 
-// -- Color --------------------------------------------------------------------
+// =============================================================================
+// COLOR
+//
+// RGBA color stored in a float in the range of [0-1].
+// =============================================================================
 
 typedef struct SP_Color SP_Color;
 struct SP_Color {
@@ -641,15 +804,23 @@ struct SP_Color {
 };
 
 extern SP_Color sp_color_rgba_f(f32 r, f32 g, f32 b, f32 a);
-extern SP_Color sp_color_rgba_i(u8 r, u8 g, u8 b, u8 a);
-extern SP_Color sp_color_rgba_hex(u32 hex);
 extern SP_Color sp_color_rgb_f(f32 r, f32 g, f32 b);
+
+// Convert [0-255] ints into a [0-1] float range color.
+extern SP_Color sp_color_rgba_i(u8 r, u8 g, u8 b, u8 a);
 extern SP_Color sp_color_rgb_i(u8 r, u8 g, u8 b);
 
+// Convert a single hex number, with RGBA channels, into a color (0x112233ff).
+extern SP_Color sp_color_rgba_hex(u32 hex);
+// Convert a single hex number, with RGB channels, into a color (0x112233).
 extern SP_Color sp_color_rgb_hex(u32 hex);
+
 extern SP_Color sp_color_hsl(f32 hue, f32 saturation, f32 lightness);
 extern SP_Color sp_color_hsv(f32 hue, f32 saturation, f32 value);
 
+// Expand a color into its parts. Useful for functions like glClearColor().
+// Usage:
+// glClearColor(sp_color_arg(SP_COLOR_BLACK));
 #define sp_color_arg(color) (color).r, (color).g, (color).b, (color).a
 
 #define SP_COLOR_WHITE ((SP_Color) {1.0f, 1.0f, 1.0f, 1.0f})
@@ -659,13 +830,33 @@ extern SP_Color sp_color_hsv(f32 hue, f32 saturation, f32 value);
 #define SP_COLOR_BLUE ((SP_Color) {0.0f, 0.0f, 1.0f, 1.0f})
 #define SP_COLOR_TRANSPARENT ((SP_Color) {0.0f, 0.0f, 0.0f, 0.0f})
 
-// -- OS -----------------------------------------------------------------------
+// =============================================================================
+// OS
+//
+// The OS abstraction layer.
+// =============================================================================
 
 SP_API void* sp_os_reserve_memory(u64 size);
 SP_API void  sp_os_commit_memory(void* ptr, u64 size);
 SP_API void  sp_os_decommit_memory(void* ptr, u64 size);
 SP_API void  sp_os_release_memory(void* ptr, u64 size);
-SP_API f32   sp_os_get_time(void);
 SP_API u32   sp_os_get_page_size(void);
+
+// Get time in seconds since initialization.
+SP_API f32 sp_os_get_time(void);
+
+// =============================================================================
+// DYNAMIC LIBRARY
+//
+// Load dynamic libraries and their functions.
+// =============================================================================
+
+typedef struct SP_Lib SP_Lib;
+
+typedef void (*SP_LibFunc)(void);
+
+SP_API SP_Lib*    sp_lib_load(SP_Arena* arena, const char* filename);
+SP_API void       sp_lib_unload(SP_Lib* lib);
+SP_API SP_LibFunc sp_lib_func(SP_Lib* lib, const char* func_name);
 
 #endif // SPIRE_H_
