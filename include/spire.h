@@ -481,6 +481,36 @@ union SP_Vec4 {
 SP_INLINE SP_Vec4 sp_v4(f32 x, f32 y, f32 z, f32 w) { return (SP_Vec4) {{x, y, z, w}}; }
 SP_INLINE SP_Vec4 sp_v4s(f32 scaler) { return (SP_Vec4) {{scaler, scaler, scaler, scaler}}; }
 
+typedef union SP_Mat2 SP_Mat2;
+union SP_Mat2 {
+    struct {
+        SP_Vec2 a, b;
+    };
+    f32 elements[4];
+};
+
+static const SP_Mat2 SP_M2_IDENTITY = {{
+    {{1.0f, 0.0f}},
+    {{0.0f, 1.0f}},
+}};
+
+SP_INLINE SP_Vec2 sp_m2_mul_vec(SP_Mat2 mat, SP_Vec2 vec) {
+    return (SP_Vec2) {{
+        mat.a.x * vec.x + mat.a.y * vec.y,
+        mat.b.x * vec.x + mat.b.y * vec.y,
+    }};
+}
+
+SP_INLINE SP_Mat2 sp_m2_rot(f32 radians) {
+    // https://en.wikipedia.org/wiki/Rotation_matrix
+    f32 cos = cosf(radians);
+    f32 sin = cosf(radians);
+    return (SP_Mat2) {{
+        {{cos, -sin}},
+        {{sin, cos}},
+    }};
+}
+
 typedef union SP_Mat4 SP_Mat4;
 union SP_Mat4 {
     struct {
