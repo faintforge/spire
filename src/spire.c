@@ -408,7 +408,7 @@ void _sp_log_internal(SP_LogLevel level, const char* file, u32 line, const char*
     };
 
     if (_sp_state.cfg.logging.colorful) {
-        printf("%s%s \033[0;90m%s:%u: \033[0m", level_color[level], level_str[level], file, line);
+        printf("%s%s\033[0;90m %s:%u: \033[0m", level_color[level], level_str[level], file, line);
     } else {
         printf("%s %s:%u: ", level_str[level], file, line);
     }
