@@ -504,7 +504,7 @@ SP_INLINE SP_Vec2 sp_m2_mul_vec(SP_Mat2 mat, SP_Vec2 vec) {
 SP_INLINE SP_Mat2 sp_m2_rot(f32 radians) {
     // https://en.wikipedia.org/wiki/Rotation_matrix
     f32 cos = cosf(radians);
-    f32 sin = cosf(radians);
+    f32 sin = sinf(radians);
     return (SP_Mat2) {{
         {{cos, -sin}},
         {{sin, cos}},
