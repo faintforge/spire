@@ -413,6 +413,9 @@ SP_API void _sp_log_internal(SP_LogLevel level, const char* file, u32 line, cons
 // This part provides some nice linear algebra functions. It's very much NOT
 // complete and is missing A LOT of features. Functions get added as they are
 // needed which explains the strange function spread.
+//
+// The matrices are stored in row-major layout so they need transposing when
+// using in OpenGL, which use a column-major layout.
 // =============================================================================
 
 typedef union SP_Vec2 SP_Vec2;
