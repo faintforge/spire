@@ -538,6 +538,39 @@ SP_INLINE SP_Vec4 sp_m4_mul_vec(SP_Mat4 mat, SP_Vec4 vec) {
     }};
 }
 
+SP_INLINE SP_Mat4 sp_m4_mul_mat(SP_Mat4 left, SP_Mat4 right) {
+    // u32 lmat_cols = 4;
+    // u32 lmat_rows = 4;
+    // u32 rmat_cols = 4;
+    // printf("{{ ");
+    // for (u32 y = 0; y < lmat_rows; y++) {
+    //     for (u32 col = 0; col < rmat_cols; col++) {
+    //         for (u32 x = 0; x < lmat_cols; x++) {
+    //             printf("l[%d]*r[%d]", y*lmat_cols+x, x*rmat_cols+col);
+    //             if (x < lmat_cols - 1) {
+    //                 printf("+");
+    //             }
+    //         }
+    //         if (col < rmat_cols - 1) {
+    //             printf(", ");
+    //         }
+    //     }
+    //     if (y < lmat_cols - 1) {
+    //         printf(" }},\n{{ ");
+    //     }
+    // }
+    // printf(" }},\n");
+
+    const f32* l = left.elements;
+    const f32* r = right.elements;
+    return (SP_Mat4) {{
+        {{ l[0]*r[0]+l[1]*r[4]+l[2]*r[8]+l[3]*r[12], l[0]*r[1]+l[1]*r[5]+l[2]*r[9]+l[3]*r[13], l[0]*r[2]+l[1]*r[6]+l[2]*r[10]+l[3]*r[14], l[0]*r[3]+l[1]*r[7]+l[2]*r[11]+l[3]*r[15] }},
+        {{ l[4]*r[0]+l[5]*r[4]+l[6]*r[8]+l[7]*r[12], l[4]*r[1]+l[5]*r[5]+l[6]*r[9]+l[7]*r[13], l[4]*r[2]+l[5]*r[6]+l[6]*r[10]+l[7]*r[14], l[4]*r[3]+l[5]*r[7]+l[6]*r[11]+l[7]*r[15] }},
+        {{ l[8]*r[0]+l[9]*r[4]+l[10]*r[8]+l[11]*r[12], l[8]*r[1]+l[9]*r[5]+l[10]*r[9]+l[11]*r[13], l[8]*r[2]+l[9]*r[6]+l[10]*r[10]+l[11]*r[14], l[8]*r[3]+l[9]*r[7]+l[10]*r[11]+l[11]*r[15] }},
+        {{ l[12]*r[0]+l[13]*r[4]+l[14]*r[8]+l[15]*r[12], l[12]*r[1]+l[13]*r[5]+l[14]*r[9]+l[15]*r[13], l[12]*r[2]+l[13]*r[6]+l[14]*r[10]+l[15]*r[14], l[12]*r[3]+l[13]*r[7]+l[14]*r[11]+l[15]*r[15] }},
+    }};
+}
+
 // https://en.wikipedia.org/wiki/Orthographic_projection#Geometry
 SP_INLINE SP_Mat4 sp_m4_ortho_projection(f32 left, f32 right, f32 top, f32 bottom, f32 far, f32 near) {
     f32 x = 2.0f / (right - left);
