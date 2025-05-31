@@ -70,6 +70,34 @@ u64 sp_fvn1a_hash(const void* data, u64 len) {
     return hash;
 }
 
+// -- Allocator interface ------------------------------------------------------
+
+SP_Allocator sp_libc_allocator(void) {
+    return (SP_Allocator) {
+        .alloc = _sp_libc_alloc_stub,
+        .free = _sp_libc_free_stub,
+        .realloc = _sp_libc_realloc_stub,
+        .userdata = NULL,
+    };
+}
+
+void* _sp_libc_alloc_stub(u64 size, void* userdata) {
+    (void) userdata;
+    return malloc(size);
+}
+
+void _sp_libc_free_stub(void* ptr, u64 size, void* userdata) {
+    (void) userdata;
+    (void) size;
+    free(ptr);
+}
+
+void* _sp_libc_realloc_stub(void* ptr, u64 old_size, u64 new_size, void* userdata) {
+    (void) userdata;
+    (void) old_size;
+    return realloc(ptr, new_size);
+}
+
 // -- Arena --------------------------------------------------------------------
 
 typedef struct _SP_ArenaBlock _SP_ArenaBlock;
@@ -167,6 +195,15 @@ void sp_arena_destroy(SP_Arena* arena) {
     sp_os_release_memory(arena, arena->desc.block_size);
 }
 
+SP_Allocator sp_arena_allocator(SP_Arena* arena) {
+    return (SP_Allocator) {
+        .alloc = _sp_arena_alloc,
+        .free = _sp_arena_free,
+        .realloc = _sp_arena_realloc,
+        .userdata = arena,
+    };
+}
+
 void* sp_arena_push(SP_Arena* arena, u64 size) {
     u8* ptr = sp_arena_push_no_zero(arena, size);
     memset(ptr, 0, size);
@@ -174,7 +211,7 @@ void* sp_arena_push(SP_Arena* arena, u64 size) {
 }
 
 void* sp_arena_push_no_zero(SP_Arena* arena, u64 size) {
-    u64 start_pos = _align_value(arena->pos, arena->desc.alignment);
+    u64 start_pos = arena->pos;
 
     u64 aligned_size = _align_value(size, arena->desc.alignment);
     u64 next_pos = start_pos + aligned_size;
@@ -273,6 +310,28 @@ SP_Temp sp_temp_begin(SP_Arena* arena) {
     };
 }
 
+void* _sp_arena_alloc(u64 size, void* userdata) {
+    return sp_arena_push_no_zero(userdata, size);
+}
+
+void _sp_arena_free(void* ptr, u64 size, void* userdata) {
+    SP_Arena* arena = userdata;
+    _SP_ArenaBlock* block = arena->last_block;
+    u64 block_pos = arena->pos - arena->chain_index * arena->desc.block_size;
+    sp_ensure(block_pos > size, "Arena free larger than previously allocated size.");
+    u64 aligned_size = _align_value(size, arena->desc.alignment);
+    if (ptr == block->memory + block_pos - aligned_size) {
+        sp_arena_pop(arena, aligned_size);
+    }
+}
+
+void* _sp_arena_realloc(void* ptr, u64 old_size, u64 new_size, void* userdata) {
+    _sp_arena_free(ptr, old_size, userdata);
+    return _sp_arena_alloc(new_size, userdata);
+}
+
+// -- Temporary arena ----------------------------------------------------------
+
 void sp_temp_end(SP_Temp temp) {
     sp_arena_pop_to(temp.arena, temp.pos);
 }
@@ -330,7 +389,7 @@ SP_ThreadCtx* sp_thread_ctx_create(void) {
     SP_Arena* scratch_arenas[SCRATCH_ARENA_COUNT] = {0};
     for (u32 i = 0; i < SCRATCH_ARENA_COUNT; i++) {
         scratch_arenas[i] = sp_arena_create();
-        sp_arena_tag(scratch_arenas[i], sp_str_pushf(scratch_arenas[i], "scratch-%u", i));
+        sp_arena_tag(scratch_arenas[i], sp_str_pushf(sp_arena_allocator(scratch_arenas[i]), "scratch-%u", i));
     }
 
     SP_ThreadCtx* ctx = sp_arena_push(scratch_arenas[0], sizeof(SP_ThreadCtx));
@@ -437,8 +496,8 @@ u32 sp_str_cstrlen(const u8* cstr) {
     return len;
 }
 
-char* sp_str_to_cstr(SP_Arena* arena, SP_Str str)  {
-    char* cstr = sp_arena_push_no_zero(arena, str.len + 1);
+char* sp_str_to_cstr(SP_Allocator allocator, SP_Str str)  {
+    char* cstr = allocator.alloc(str.len + 1, allocator.userdata);
     memcpy(cstr, str.data, str.len);
     cstr[str.len] = 0;
     return cstr;
@@ -452,18 +511,18 @@ b8 sp_str_equal(SP_Str a, SP_Str b) {
     return memcmp(a.data, b.data, a.len) == 0;
 }
 
-SP_Str sp_str_pushf(SP_Arena* arena, const void* fmt, ...) {
+SP_Str sp_str_pushf(SP_Allocator allocator, const void* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     va_list len_args;
     va_copy(len_args, args);
-    u64 len = vsnprintf(NULL, 0, fmt, len_args) + 1;
+    u64 len = vsnprintf(NULL, 0, fmt, len_args);
     va_end(len_args);
-    u8* buffer = sp_arena_push_no_zero(arena, len);
+
+    u8* buffer = allocator.alloc(len + 1, allocator.userdata);
     vsnprintf((char*) buffer, len, fmt, args);
     va_end(args);
-    // Remove the null terminator.
-    sp_arena_pop(arena, 1);
+    buffer = allocator.realloc(buffer, len + 1, len, allocator.userdata);
     return sp_str(buffer, len - 1);
 }
 

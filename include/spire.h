@@ -218,6 +218,68 @@ SP_API u64 sp_fvn1a_hash(const void* data, u64 len);
 #endif // SP_DEBUG
 
 // =============================================================================
+// ALLOCATER INTERFACE
+// =============================================================================
+
+typedef void* (*SP_Alloc)(u64 size, void* userdata);
+typedef void (*SP_Free)(void* ptr, u64 size, void* userdata);
+typedef void* (*SP_Realloc)(void* ptr, u64 old_size, u64 new_size, void* userdata);
+
+typedef struct SP_Allocator SP_Allocator;
+struct SP_Allocator {
+    SP_Alloc alloc;
+    SP_Free free;
+    SP_Realloc realloc;
+    void* userdata;
+};
+
+SP_API SP_Allocator sp_libc_allocator(void);
+
+SP_API void* _sp_libc_alloc_stub(u64 size, void* userdata);
+SP_API void _sp_libc_free_stub(void* ptr, u64 size, void* userdata);
+SP_API void* _sp_libc_realloc_stub(void* ptr, u64 old_size, u64 new_size, void* userdata);
+
+// =============================================================================
+// STRING
+//
+// Length based strings. Any string function that creates a new string (one that
+// takes a SP_Allocator as an argument) needs to have the 'data' field of the
+// string manually freed.
+// =============================================================================
+
+typedef struct SP_Str SP_Str;
+struct SP_Str {
+    const u8* data;
+    u32 len;
+};
+
+// Create a string from a string literal ("this kind of string").
+#define sp_str_lit(STR_LIT) ((SP_Str) {(const u8*) (STR_LIT), sizeof(STR_LIT) - 1})
+
+// Create a string from a null termianted string.
+#define sp_cstr(CSTR) ((SP_Str) {(const u8*) (CSTR), sp_str_cstrlen((const u8*) (CSTR))})
+
+SP_API SP_Str sp_str(const u8* data, u32 len);
+SP_API b8 sp_str_equal(SP_Str a, SP_Str b);
+
+// Convert a string into a null termianted string.
+SP_API char* sp_str_to_cstr(SP_Allocator allocator, SP_Str str);
+
+// Push a formatted string onto an arena. The 'fmt' arg is a printf style
+// formatting string.
+SP_API SP_Str sp_str_pushf(SP_Allocator allocator, const void* fmt, ...);
+
+// Returns a substring of 'source'.
+// Includes the 'start' index.
+// Excludes the 'end' index.
+SP_API SP_Str sp_str_substr(SP_Str source, u32 start, u32 end);
+
+// Calculate the length of a null termianted string.
+// This function only exists as to not bring in the 'string.h' header because of
+// the 'sp_cstr' macro.
+SP_API u32 sp_str_cstrlen(const u8* cstr);
+
+// =============================================================================
 // ARENA ALLOCATOR
 //
 // An arena allocator could be thought of as a stack. It's an allocation
@@ -228,16 +290,6 @@ SP_API u64 sp_fvn1a_hash(const void* data, u64 len);
 // - Talk: https://www.youtube.com/watch?v=TZ5a3gCCZYo
 // =============================================================================
 
-// Length based string.
-//
-// It's defined here instead of at the string section
-// because some arena functions need it.
-typedef struct SP_Str SP_Str;
-struct SP_Str {
-    const u8* data;
-    u32 len;
-};
-
 typedef struct SP_Arena SP_Arena;
 
 // Create a default configured arena as specified when sp_init was called.
@@ -246,6 +298,9 @@ SP_API SP_Arena* sp_arena_create_configurable(SP_ArenaDesc desc);
 
 // Free memory allocated by arena.
 SP_API void sp_arena_destroy(SP_Arena* arena);
+
+// Fit arena into a more generic allocator interface.
+SP_API SP_Allocator sp_arena_allocator(SP_Arena* arena);
 
 // Allocate 'size' bytes on the arena. If there isn't enough memory on the arena
 // and 'chaining' or 'virtual_memory' is set at arena creation, the memory
@@ -295,6 +350,10 @@ SP_API void sp_arena_tag(SP_Arena* arena, SP_Str tag);
 // Get usage metrics of an arena.
 SP_API SP_ArenaMetrics sp_arena_get_metrics(const SP_Arena* arena);
 
+SP_API void* _sp_arena_alloc(u64 size, void* userdata);
+SP_API void _sp_arena_free(void* ptr, u64 size, void* userdata);
+SP_API void* _sp_arena_realloc(void* ptr, u64 old_size, u64 new_size, void* userdata);
+
 // =============================================================================
 // TEMPORARY ARENA
 //
@@ -311,38 +370,6 @@ struct SP_Temp {
 
 SP_API SP_Temp sp_temp_begin(SP_Arena* arena);
 SP_API void    sp_temp_end(SP_Temp temp);
-
-// =============================================================================
-// STRINGS
-//
-// Length based strings.
-// =============================================================================
-
-// Create a string from a string literal ("this kind of string").
-#define sp_str_lit(STR_LIT) ((SP_Str) {(const u8*) (STR_LIT), sizeof(STR_LIT) - 1})
-
-// Create a string from a null termianted string.
-#define sp_cstr(CSTR) ((SP_Str) {(const u8*) (CSTR), sp_str_cstrlen((const u8*) (CSTR))})
-
-SP_API SP_Str sp_str(const u8* data, u32 len);
-SP_API b8 sp_str_equal(SP_Str a, SP_Str b);
-
-// Convert a string into a null termianted string.
-SP_API char* sp_str_to_cstr(SP_Arena* arena, SP_Str str);
-
-// Push a formatted string onto an arena. The 'fmt' arg is a printf style
-// formatting string.
-SP_API SP_Str sp_str_pushf(SP_Arena* arena, const void* fmt, ...);
-
-// Returns a substring of 'source'.
-// Includes the 'start' index.
-// Excludes the 'end' index.
-SP_API SP_Str sp_str_substr(SP_Str source, u32 start, u32 end);
-
-// Calculate the length of a null termianted string.
-// This function only exists as to not bring in the 'string.h' header because of
-// the 'sp_cstr' macro.
-SP_API u32 sp_str_cstrlen(const u8* cstr);
 
 // =============================================================================
 // THREAD CONTEXT
@@ -869,20 +896,20 @@ struct SP_Color {
     f32 r, g, b, a;
 };
 
-extern SP_Color sp_color_rgba_f(f32 r, f32 g, f32 b, f32 a);
-extern SP_Color sp_color_rgb_f(f32 r, f32 g, f32 b);
+SP_API SP_Color sp_color_rgba_f(f32 r, f32 g, f32 b, f32 a);
+SP_API SP_Color sp_color_rgb_f(f32 r, f32 g, f32 b);
 
 // Convert [0-255] ints into a [0-1] float range color.
-extern SP_Color sp_color_rgba_i(u8 r, u8 g, u8 b, u8 a);
-extern SP_Color sp_color_rgb_i(u8 r, u8 g, u8 b);
+SP_API SP_Color sp_color_rgba_i(u8 r, u8 g, u8 b, u8 a);
+SP_API SP_Color sp_color_rgb_i(u8 r, u8 g, u8 b);
 
 // Convert a single hex number, with RGBA channels, into a color (0x112233ff).
-extern SP_Color sp_color_rgba_hex(u32 hex);
+SP_API SP_Color sp_color_rgba_hex(u32 hex);
 // Convert a single hex number, with RGB channels, into a color (0x112233).
-extern SP_Color sp_color_rgb_hex(u32 hex);
+SP_API SP_Color sp_color_rgb_hex(u32 hex);
 
-extern SP_Color sp_color_hsl(f32 hue, f32 saturation, f32 lightness);
-extern SP_Color sp_color_hsv(f32 hue, f32 saturation, f32 value);
+SP_API SP_Color sp_color_hsl(f32 hue, f32 saturation, f32 lightness);
+SP_API SP_Color sp_color_hsv(f32 hue, f32 saturation, f32 value);
 
 // Expand a color into its parts. Useful for functions like glClearColor().
 // Usage:
