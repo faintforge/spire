@@ -531,10 +531,8 @@ SP_Str sp_str_substr(SP_Str source, u32 start, u32 end) {
     return sp_str(source.data + start, end - start);
 }
 
-// -- Hash map -----------------------------------------------------------------
-
 // =============================================================================
-// GENERIC BACKEND
+// HASH CONTAINER BACKEND
 // =============================================================================
 
 enum {
@@ -657,9 +655,7 @@ static _SP_HashContainerGetNodeResult _sp_hash_container_get_node(
     return (_SP_HashContainerGetNodeResult) {0};
 }
 
-// =============================================================================
-// HASH MAP
-// =============================================================================
+// -- Hash map -----------------------------------------------------------------
 
 struct SP_HashMap {
     SP_HashMapDesc desc;
@@ -1251,6 +1247,315 @@ b8 sp_hash_map_helper_equal_str(const void* a, const void* b, u64 len) {
 
 b8 sp_hash_map_helper_equal_generic(const void* a, const void* b, u64 len) {
     return memcmp(a, b, len) == 0;
+}
+
+// -- Hash set -----------------------------------------------------------------
+
+struct SP_HashSet {
+    SP_HashSetDesc desc;
+    u32 capacity;
+    union {
+        // Struct of Arrays
+        // Used for open addressing
+        struct {
+            u8* state;
+            u64* hashes;
+            void* values;
+            u32 count;
+        } soa;
+        // Array of Structs
+        // Used for separate chaining
+        struct {
+            _SP_HashContainerChainNode* nodes;
+            _SP_HashContainerChainNode* free_list;
+        } aos;
+    };
+};
+
+static void _sp_hash_set_grow(SP_HashSet* set) {
+    const f32 GROWTH_FACTOR = 2.0f;
+    u32 new_cap = set->capacity * GROWTH_FACTOR;
+
+    u8* new_state = sp_alloc(set->desc.allocator, new_cap * sizeof(u8));
+    u64* new_hashes = sp_alloc(set->desc.allocator, new_cap * sizeof(u64));
+    void* new_values = sp_alloc(set->desc.allocator, new_cap * set->desc.value_size);
+    memset(new_state, 0, new_cap * sizeof(u8));
+
+    for (u32 i = 0; i < set->capacity; i++) {
+        if (set->soa.state[i] == _SP_HASH_BUCKET_STATE_ALIVE) {
+            const void* value = (u8*) set->soa.values + set->desc.value_size * i;
+            u32 new_index = _sp_hash_container_get_index(value,
+                    set->desc.value_size,
+                    set->soa.hashes[i],
+                    new_state,
+                    new_hashes,
+                    new_values,
+                    true,
+                    new_cap,
+                    set->desc.equal);
+            u64 value_size = set->desc.value_size;
+
+            new_state[new_index] = _SP_HASH_BUCKET_STATE_ALIVE;
+            new_hashes[new_index] = set->soa.hashes[i];
+            memcpy((u8*) new_values + value_size * new_index,
+                    (u8*) set->soa.values + value_size * i,
+                    value_size);
+        }
+    }
+
+    sp_free(set->desc.allocator, set->soa.state, set->capacity * sizeof(u8));
+    sp_free(set->desc.allocator, set->soa.hashes, set->capacity * sizeof(u64));
+    sp_free(set->desc.allocator, set->soa.values, set->capacity * set->desc.value_size);
+
+    set->soa.state = new_state;
+    set->soa.hashes = new_hashes;
+    set->soa.values = new_values;
+    set->capacity = new_cap;
+}
+
+static inline _SP_HashContainerChainNode* _sp_hash_set_get_node(SP_HashSet* set, u32 index) {
+    u64 node_size = sizeof(_SP_HashContainerChainNode) + set->desc.value_size;
+    return (_SP_HashContainerChainNode*) ((u8*) set->aos.nodes + node_size * index);
+}
+
+SP_HashSet* sp_hash_set_create(SP_HashSetDesc desc) {
+    SP_HashSet* set = sp_alloc(desc.allocator, sizeof(SP_HashSet));
+
+    u32 cap = desc.capacity;
+    switch (desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING:
+            *set = (SP_HashSet) {
+                .desc = desc,
+                .capacity = cap,
+                .soa = {
+                    .state = sp_alloc(desc.allocator, cap * sizeof(u8)),
+                    .hashes = sp_alloc(desc.allocator, cap * sizeof(u64)),
+                    .values = sp_alloc(desc.allocator, cap * desc.value_size),
+                }
+            };
+            memset(set->soa.state, 0, cap * sizeof(u8));
+            break;
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            u64 node_size = sizeof(_SP_HashContainerChainNode) + desc.value_size;
+            *set = (SP_HashSet) {
+                .desc = desc,
+                .capacity = cap,
+                .aos = {
+                    .nodes = sp_alloc(desc.allocator, cap * node_size),
+                    .free_list = NULL,
+                },
+            };
+            memset(set->aos.nodes, 0, cap * node_size);
+        } break;
+    }
+
+    return set;
+}
+
+void sp_hash_set_destroy(SP_HashSet* set) {
+    switch (set->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING:
+            sp_free(set->desc.allocator, set->soa.state, set->capacity * sizeof(u8));
+            sp_free(set->desc.allocator, set->soa.hashes, set->capacity * sizeof(u64));
+            sp_free(set->desc.allocator, set->soa.values, set->capacity * set->desc.value_size);
+            break;
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            u64 node_size = sizeof(_SP_HashContainerChainNode) + set->desc.value_size;
+            for (u32 i = 0; i < set->capacity; i++) {
+                _SP_HashContainerChainNode* node = _sp_hash_set_get_node(set, i);
+                while (node != NULL) {
+                    sp_free(set->desc.allocator, node, node_size);
+                    node = node->next;
+                }
+            }
+
+            _SP_HashContainerChainNode* node = set->aos.free_list;
+            while (node != NULL) {
+                sp_free(set->desc.allocator, node, node_size);
+                node = node->next;
+            }
+
+            sp_free(set->desc.allocator, set->aos.nodes, set->capacity * node_size);
+        } break;
+    }
+    *set = (SP_HashSet) {0};
+}
+
+b8 sp_hash_set_insert(SP_HashSet* set, const void* value) {
+    const f32 LOAD_FACTOR = 0.75f;
+    u64 hash = set->desc.hash(value, set->desc.value_size);
+    switch (set->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING: {
+            u32 index = _sp_hash_container_get_index(value,
+                    set->desc.value_size,
+                    hash,
+                    set->soa.state,
+                    set->soa.hashes,
+                    set->soa.values,
+                    true,
+                    set->capacity,
+                    set->desc.equal);
+            u8 state = set->soa.state[index];
+            if (state == _SP_HASH_BUCKET_STATE_ALIVE) {
+                return false;
+            }
+
+            if (set->soa.count == set->capacity * LOAD_FACTOR) {
+                _sp_hash_set_grow(set);
+                index = _sp_hash_container_get_index(value,
+                        set->desc.value_size,
+                        hash,
+                        set->soa.state,
+                        set->soa.hashes,
+                        set->soa.values,
+                        true,
+                        set->capacity,
+                        set->desc.equal);
+            }
+
+            if (state == _SP_HASH_BUCKET_STATE_EMPTY) {
+                set->soa.count++;
+            }
+
+            set->soa.state[index] = _SP_HASH_BUCKET_STATE_ALIVE;
+            set->soa.hashes[index] = hash;
+            u64 value_size = set->desc.value_size;
+            memcpy((u8*) set->soa.values + value_size * index, value, value_size);
+
+            return true;
+        }
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            u64 node_size = sizeof(_SP_HashContainerChainNode) + set->desc.value_size;
+            _SP_HashContainerGetNodeResult result = _sp_hash_container_get_node(value,
+                    set->desc.value_size,
+                    hash,
+                    set->aos.nodes,
+                    node_size,
+                    set->capacity,
+                    set->desc.equal,
+                    true,
+                    &set->aos.free_list,
+                    set->desc.allocator);
+            if (result.new_key) {
+                result.node->state = _SP_HASH_BUCKET_STATE_ALIVE;
+                result.node->hash = hash;
+                void* node_value = &result.node[1];
+                memcpy(node_value, value, set->desc.value_size);
+                return true;
+            }
+            return false;
+        }
+    }
+
+    sp_assert(false, "Unreachable!");
+    return false;
+}
+
+b8 sp_hash_set_remove(SP_HashSet* set, const void* value) {
+    u64 hash = set->desc.hash(value, set->desc.value_size);
+    switch (set->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING: {
+            u32 index = _sp_hash_container_get_index(value,
+                    set->desc.value_size,
+                    hash,
+                    set->soa.state,
+                    set->soa.hashes,
+                    set->soa.values,
+                    false,
+                    set->capacity,
+                    set->desc.equal);
+            if (set->soa.state[index] == _SP_HASH_BUCKET_STATE_ALIVE) {
+                set->soa.state[index] = _SP_HASH_BUCKET_STATE_DEAD;
+                return true;
+            }
+            return false;
+        }
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            u64 node_size = sizeof(_SP_HashContainerChainNode) + set->desc.value_size;
+            _SP_HashContainerGetNodeResult result = _sp_hash_container_get_node(value,
+                    set->desc.value_size,
+                    hash,
+                    set->aos.nodes,
+                    node_size,
+                    set->capacity,
+                    set->desc.equal,
+                    false,
+                    &set->aos.free_list,
+                    set->desc.allocator);
+            if (result.new_key) {
+                return false;
+            }
+
+            _SP_HashContainerChainNode* node = result.node;
+            // Root node
+            if (node->prev == NULL) {
+                if (node->next == NULL) {
+                    node->state = _SP_HASH_BUCKET_STATE_EMPTY;
+                } else {
+                    _SP_HashContainerChainNode* free_node = node->next;
+                    memcpy(node, node->next, node_size);
+                    node->prev = NULL;
+                    if (node->next != NULL) {
+                        node->next->prev = node;
+                    }
+
+                    free_node->next = set->aos.free_list;
+                    set->aos.free_list = free_node;
+                }
+            } else {
+                node->prev->next = node->next;
+                if (node->next != NULL) {
+                    node->next->prev = node->prev;
+                }
+
+                node->next = set->aos.free_list;
+                set->aos.free_list = node;
+            }
+
+            return true;
+        }
+    }
+
+    sp_assert(false, "Unreachable!");
+    return false;
+}
+
+b8 sp_hash_set_has(SP_HashSet* set, const void* value) {
+    u64 hash = set->desc.hash(value, set->desc.value_size);
+    switch (set->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING: {
+            u32 index = _sp_hash_container_get_index(value,
+                    set->desc.value_size,
+                    hash,
+                    set->soa.state,
+                    set->soa.hashes,
+                    set->soa.values,
+                    false,
+                    set->capacity,
+                    set->desc.equal);
+            if (index == ~0u) {
+                return false;
+            }
+            return set->soa.state[index] == _SP_HASH_BUCKET_STATE_ALIVE;
+        }
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            u64 node_size = sizeof(_SP_HashContainerChainNode) + set->desc.value_size;
+            _SP_HashContainerGetNodeResult result = _sp_hash_container_get_node(value,
+                    set->desc.value_size,
+                    hash,
+                    set->aos.nodes,
+                    node_size,
+                    set->capacity,
+                    set->desc.equal,
+                    false,
+                    &set->aos.free_list,
+                    set->desc.allocator);
+            return !result.new_key;
+        }
+    }
+
+    sp_assert(false, "Unreachable!");
+    return false;
 }
 
 // -- Color --------------------------------------------------------------------

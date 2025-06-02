@@ -711,6 +711,28 @@ SP_API b8  sp_hash_map_helper_equal_generic(const void* a, const void* b, u64 le
     })
 
 // =============================================================================
+// HASH SET
+// =============================================================================
+
+typedef struct SP_HashSetDesc SP_HashSetDesc;
+struct SP_HashSetDesc {
+    SP_Allocator allocator;
+    u32 capacity;
+    SP_HashCollisionResolution collision_resolution;
+    SP_HashFunc hash;
+    SP_EqualFunc equal;
+    u64 value_size;
+};
+
+typedef struct SP_HashSet SP_HashSet;
+
+SP_API SP_HashSet* sp_hash_set_create(SP_HashSetDesc desc);
+SP_API void sp_hash_set_destroy(SP_HashSet* set);
+SP_API b8 sp_hash_set_insert(SP_HashSet* set, const void* value);
+SP_API b8 sp_hash_set_remove(SP_HashSet* set, const void* value);
+SP_API b8 sp_hash_set_has(SP_HashSet* set, const void* value);
+
+// =============================================================================
 // LINKED LISTS
 //
 // A set of macros to help with:
