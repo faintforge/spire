@@ -18,28 +18,28 @@ SP_TestResult test_hash_map_insert_get(void* userdata) {
     key = sp_str_lit("life");
     value = 42;
     result = sp_hash_map_insert(map, &key, &value);
-    sp_test_assert(result, "Insert failed!");
+    sp_test_assert(result);
 
     key = sp_str_lit("life");
     value = 8;
     result = sp_hash_map_insert(map, &key, &value);
-    sp_test_assert(!result, "Insert succeeded with duplicate key!");
+    sp_test_assert(!result);
 
     key = sp_str_lit("life");
     output = 0;
     result = sp_hash_map_get(map, &key, &output);
-    sp_test_assert(result, "Get can't find key in map!");
-    sp_test_assert(output == 42, "Get outputs wrong value!");
+    sp_test_assert(result);
+    sp_test_assert(output == 42);
 
     key = sp_str_lit("not in map");
     output = 0;
     result = sp_hash_map_get(map, &key, &output);
-    sp_test_assert(!result, "Get finds non-existant key!");
-    sp_test_assert(output == 0, "Get sets output without a valid key!");
+    sp_test_assert(!result);
+    sp_test_assert(output == 0);
 
     key = sp_str_lit("not in map");
     result = sp_hash_map_get(map, &key, NULL);
-    sp_test_assert(!result, "Get found a non-existant key!");
+    sp_test_assert(!result);
 
     sp_test_success();
 }
@@ -62,26 +62,40 @@ SP_TestResult test_hash_map_remove(void* userdata) {
     key = sp_str_lit("life");
     value = 42;
     result = sp_hash_map_insert(map, &key, &value);
-    sp_test_assert(result, "Insertion failed!");
+    sp_test_assert(result);
 
     key = sp_str_lit("other");
     value = 8;
     result = sp_hash_map_insert(map, &key, &value);
-    sp_test_assert(result, "Insertion failed!");
+    sp_test_assert(result);
 
     key = sp_str_lit("life");
-    result = sp_hash_map_remove(map, &key);
-    sp_test_assert(result, "Remove failed!");
+    output = 0;
+    result = sp_hash_map_remove(map, &key, &output);
+    sp_test_assert(result);
+    sp_test_assert(output == 42);
 
     key = sp_str_lit("life");
-    result = sp_hash_map_remove(map, &key);
-    sp_test_assert(!result, "Remove succeeded on a key not in map!");
+    output = 0;
+    result = sp_hash_map_remove(map, &key, &output);
+    sp_test_assert(!result);
+    sp_test_assert(output == 0);
 
     key = sp_str_lit("life");
     output = 0;
     result = sp_hash_map_get(map, &key, &output);
-    sp_test_assert(!result, "Get found a non-existant key!");
-    sp_test_assert(output == 0, "Get gave output for a non-existant key!");
+    sp_test_assert(!result);
+    sp_test_assert(output == 0);
+
+    key = sp_str_lit("other");
+    result = sp_hash_map_remove(map, &key, NULL);
+    sp_test_assert(result);
+
+    key = sp_str_lit("other");
+    output = 0;
+    result = sp_hash_map_get(map, &key, &output);
+    sp_test_assert(!result);
+    sp_test_assert(output == 0);
 
     sp_test_success();
 }
@@ -104,18 +118,18 @@ SP_TestResult test_hash_map_set(void* userdata) {
     key = sp_str_lit("life");
     value = 42;
     result = sp_hash_map_set(map, &key, &value);
-    sp_test_assert(result, "Set unique key doesn't register as a new key!");
+    sp_test_assert(result);
 
     key = sp_str_lit("life");
     value = 8;
     result = sp_hash_map_set(map, &key, &value);
-    sp_test_assert(!result, "Set duplicate key registers as a new key!");
+    sp_test_assert(!result);
 
     key = sp_str_lit("life");
     output = 8;
     result = sp_hash_map_get(map, &key, &output);
-    sp_test_assert(result, "Get couldn't find key!");
-    sp_test_assert(output == 8, "Get wrong output!");
+    sp_test_assert(result);
+    sp_test_assert(output == 8);
 
     sp_test_success();
 }
@@ -136,30 +150,32 @@ SP_TestResult test_hash_map_mass_insert_remove(void* userdata) {
         u32 key = i;
         u32 value = i*i;
         b8 result = sp_hash_map_set(map, &key, &value);
-        sp_test_assert(result, "Insert failed!");
+        sp_test_assert(result);
     }
 
     // See that all keys are present.
     for (u32 i = 0; i < count; i++) {
         u32 key = i;
         b8 result = sp_hash_map_get(map, &key, NULL);
-        sp_test_assert(result, "Key not found!");
+        sp_test_assert(result);
     }
 
     // Remove every other key.
     for (u32 i = 0; i < count; i += 2) {
         u32 key = i;
-        b8 result = sp_hash_map_remove(map, &key);
-        sp_test_assert(result, "Remove failed!");
+        u32 output = 0;
+        b8 result = sp_hash_map_remove(map, &key, &output);
+        sp_test_assert(result);
+        sp_test_assert(output == i*i);
     }
 
     for (u32 i = 0; i < count; i++) {
         u32 key = i;
         b8 result = sp_hash_map_get(map, &key, NULL);
         if (i % 2 == 0) {
-            sp_test_assert(!result, "Non-existant key found!");
+            sp_test_assert(!result);
         } else {
-            sp_test_assert(result, "Key not found!");
+            sp_test_assert(result);
         }
     }
 
@@ -184,27 +200,29 @@ SP_TestResult test_hash_map_reinsertion(void* userdata) {
     key = sp_str_lit("life");
     value = 42;
     result = sp_hash_map_insert(map, &key, &value);
-    sp_test_assert(result, "Insert failed!");
+    sp_test_assert(result);
 
     key = sp_str_lit("life");
     value = 42;
     result = sp_hash_map_insert(map, &key, &value);
-    sp_test_assert(!result, "Insert duplicate key succeeded!");
+    sp_test_assert(!result);
 
     key = sp_str_lit("life");
-    result = sp_hash_map_remove(map, &key);
-    sp_test_assert(result, "Remove failed!");
+    output = 0;
+    result = sp_hash_map_remove(map, &key, &output);
+    sp_test_assert(result);
+    sp_test_assert(output == 42);
 
     key = sp_str_lit("life");
     value = 84;
     result = sp_hash_map_insert(map, &key, &value);
-    sp_test_assert(result, "Insert failed!");
+    sp_test_assert(result);
 
     key = sp_str_lit("life");
     output = 0;
     result = sp_hash_map_get(map, &key, &output);
-    sp_test_assert(result, "Get failed!");
-    sp_test_assert(output == 84, "Get output wrong!");
+    sp_test_assert(result);
+    sp_test_assert(output == 84);
 
     sp_test_success();
 }
@@ -225,7 +243,7 @@ SP_TestResult test_hash_map_iteration(void* userdata) {
         u32 key = i;
         u32 value = i*i;
         b8 result = sp_hash_map_set(map, &key, &value);
-        sp_test_assert(result, "Insert failed!");
+        sp_test_assert(result);
     }
 
     u32 iteration_keys[COUNT] = {0};
@@ -240,7 +258,7 @@ SP_TestResult test_hash_map_iteration(void* userdata) {
         sp_hash_map_iter_get_key(iter, &key);
         sp_hash_map_iter_get_value(iter, &value);
 
-        sp_test_assert(value == key*key, "Key-value pair doesn't match!");
+        sp_test_assert(value == key*key);
 
         iteration_keys[i] = key;
         iteration_values[i] = value;
@@ -250,8 +268,8 @@ SP_TestResult test_hash_map_iteration(void* userdata) {
 
     for (u32 i = 0; i < COUNT; i++) {
         u32 index = key_index[i];
-        sp_test_assert(iteration_keys[index] == i, "Iteration key doesn't match!");
-        sp_test_assert(iteration_values[index] == i*i, "Iteration value doesn't match!");
+        sp_test_assert(iteration_keys[index] == i);
+        sp_test_assert(iteration_values[index] == i*i);
     }
 
     sp_test_success();
@@ -276,16 +294,16 @@ SP_TestResult test_hash_map_get_pointer(void* userdata) {
     key = sp_str_lit("life");
     value = 42;
     result = sp_hash_map_insert(map, &key, &value);
-    sp_test_assert(result, "Insert failed!");
+    sp_test_assert(result);
 
     key = sp_str_lit("life");
     output = sp_hash_map_getp(map, &key);
-    sp_test_assert(output != NULL, "Get pointer failed!");
-    sp_test_assert(*output == 42, "Get pointer output wrong!");
+    sp_test_assert(output != NULL);
+    sp_test_assert(*output == 42);
 
     key = sp_str_lit("not in map");
     output = sp_hash_map_getp(map, &key);
-    sp_test_assert(output == NULL, "Get pointer failed!");
+    sp_test_assert(output == NULL);
 
     sp_test_success();
 }

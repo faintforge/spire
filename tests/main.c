@@ -1,4 +1,5 @@
 #include "spire.h"
+#include <assert.h>
 
 extern void test_hash_map(SP_TestSuite* suite);
 
