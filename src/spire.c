@@ -520,10 +520,10 @@ SP_Str sp_str_pushf(SP_Allocator allocator, const void* fmt, ...) {
     va_end(len_args);
 
     u8* buffer = allocator.alloc(len + 1, allocator.userdata);
-    vsnprintf((char*) buffer, len, fmt, args);
+    vsnprintf((char*) buffer, len + 1, fmt, args);
     va_end(args);
-    buffer = allocator.realloc(buffer, len + 1, len, allocator.userdata);
-    return sp_str(buffer, len - 1);
+    buffer = allocator.realloc(buffer, len, len, allocator.userdata);
+    return sp_str(buffer, len);
 }
 
 SP_Str sp_str_substr(SP_Str source, u32 start, u32 end) {
