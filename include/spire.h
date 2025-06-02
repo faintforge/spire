@@ -218,7 +218,7 @@ SP_API u64 sp_fvn1a_hash(const void* data, u64 len);
 #endif // SP_DEBUG
 
 // =============================================================================
-// ALLOCATER INTERFACE
+// ALLOCATOR INTERFACE
 // =============================================================================
 
 typedef void* (*SP_Alloc)(u64 size, void* userdata);
@@ -234,6 +234,10 @@ struct SP_Allocator {
 };
 
 SP_API SP_Allocator sp_libc_allocator(void);
+
+#define sp_alloc(ALLOCATOR, SIZE) ((ALLOCATOR).alloc((SIZE), (ALLOCATOR).userdata))
+#define sp_free(ALLOCATOR, PTR, SIZE) ((ALLOCATOR).free((PTR), (SIZE), (ALLOCATOR).userdata))
+#define sp_realloc(ALLOCATOR, PTR, OLD_SIZE, NEW_SIZE) ((ALLOCATOR).realloc((PTR), (OLD_SIZE), (NEW_SIZE), (ALLOCATOR).userdata))
 
 SP_API void* _sp_libc_alloc_stub(u64 size, void* userdata);
 SP_API void _sp_libc_free_stub(void* ptr, u64 size, void* userdata);
