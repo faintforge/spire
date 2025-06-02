@@ -639,127 +639,73 @@ SP_INLINE SP_Mat4 sp_m4_inv_ortho_projection(f32 left, f32 right, f32 top, f32 b
 
 // =============================================================================
 // HASH MAP
-//
-// The hash map implementation is optimized around arenas. It uses separate
-// chaining as its collision resolution strategy.
 // =============================================================================
 
-typedef struct SP_HashMap SP_HashMap;
+typedef enum HashCollisionResolution {
+    SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING,
+    SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING,
+} SP_HashCollisionResolution;
+
+typedef u64 (*SP_HashFunc)(const void* data, u64 len);
+typedef b8 (*SP_EqualFunc)(const void* a, const void* b, u64 size);
 
 typedef struct SP_HashMapDesc SP_HashMapDesc;
 struct SP_HashMapDesc {
-    SP_Arena* arena;
+    SP_Allocator allocator;
     u32 capacity;
-
-    u64 (*hash)(const void* key, u64 size);
-    b8 (*equal)(const void* a, const void* b, u64 size);
+    SP_HashCollisionResolution collision_resolution;
+    SP_HashFunc hash;
+    SP_EqualFunc equal;
 
     u64 key_size;
     u64 value_size;
 };
 
-SP_API SP_HashMap* sp_hm_new(SP_HashMapDesc desc);
+typedef struct SP_HashMap SP_HashMap;
 
-#define sp_hm_insert(MAP, KEY, VALUE) ({ \
-        __typeof__(KEY) _key = (KEY); \
-        __typeof__(VALUE) _value = (VALUE); \
-        _sp_hash_map_insert_impl((MAP), &_key, sizeof(_key), &_value, sizeof(_value)); \
-    })
+SP_API SP_HashMap* sp_hash_map_create(SP_HashMapDesc desc);
+SP_API void sp_hash_map_destroy(SP_HashMap* map);
+SP_API b8 sp_hash_map_insert(SP_HashMap* map, const void* key, const void* value);
+SP_API b8 sp_hash_map_set(SP_HashMap* map, const void* key, const void* value);
+SP_API b8 sp_hash_map_remove(SP_HashMap* map, const void* key);
+SP_API b8 sp_hash_map_get(SP_HashMap* map, const void* key, void* out_value);
+SP_API void* sp_hash_map_getp(SP_HashMap* map, const void* key);
 
-#define sp_hm_set(MAP, KEY, VALUE) ({ \
-        __typeof__(KEY) _key = (KEY); \
-        __typeof__(VALUE) _value = (VALUE); \
-        __typeof__(VALUE) prev_value; \
-        _sp_hash_map_set_impl((MAP), &_key, sizeof(_key), &_value, sizeof(_value), &prev_value); \
-        prev_value; \
-    })
-
-#define sp_hm_get(MAP, KEY, VALUE_TYPE) ({ \
-        __typeof__(KEY) _key = (KEY); \
-        VALUE_TYPE value; \
-        _sp_hash_map_get_impl((MAP), &_key, sizeof(_key), &value, sizeof(value)); \
-        value; \
-    })
-
-#define sp_hm_getp(MAP, KEY) ({ \
-        __typeof__(KEY) _key = (KEY); \
-        _sp_hash_map_getp_impl((MAP), &_key, sizeof(_key)); \
-    })
-
-#define sp_hm_has(MAP, KEY) ({ \
-        __typeof__(KEY) _key = (KEY); \
-        _sp_hash_map_has_impl((MAP), &_key, sizeof(_key)); \
-    })
-
-#define sp_hm_remove(MAP, KEY, VALUE_TYPE) ({ \
-        __typeof__(KEY) _key = (KEY); \
-        VALUE_TYPE value; \
-        _sp_hash_map_remove_impl((MAP), &_key, sizeof(_key), &value, sizeof(value)); \
-        value; \
-    })
-
-SP_API u64 sp_hm_get_value_size(const SP_HashMap* map);
-SP_API u64 sp_hm_get_key_size(const SP_HashMap* map);
-
-// Iteration
-typedef struct SP_HashMapIter SP_HashMapIter;
-struct SP_HashMapIter {
+typedef struct HashMapIter HashMapIter;
+struct HashMapIter {
     SP_HashMap* map;
-    void* bucket;
+    void* node;
     u32 index;
 };
 
-SP_API SP_HashMapIter sp_hm_iter_new(SP_HashMap* map);
-SP_API b8             sp_hm_iter_valid(SP_HashMapIter iter);
-SP_API SP_HashMapIter sp_hm_iter_next(SP_HashMapIter iter);
-SP_API void*          sp_hm_iter_get_keyp(SP_HashMapIter iter);
-SP_API void*          sp_hm_iter_get_valuep(SP_HashMapIter iter);
-
-#define sp_hm_iter_get_key(ITER, KEY_TYPE) ({ \
-        KEY_TYPE result; \
-        _sp_hm_iter_get_key_impl((ITER), &result); \
-        result; \
-    })
-
-#define sp_hm_iter_get_value(ITER, VALUE_TYPE) ({ \
-        VALUE_TYPE result; \
-        _sp_hm_iter_get_value_impl((ITER), &result); \
-        result; \
-    })
-
-SP_API void _sp_hm_iter_get_key_impl(SP_HashMapIter iter, void* out_value);
-SP_API void _sp_hm_iter_get_value_impl(SP_HashMapIter iter, void* out_value);
+SP_API HashMapIter sp_hash_map_iter_init(SP_HashMap* map);
+SP_API b8 sp_hash_map_iter_valid(HashMapIter iter);
+SP_API HashMapIter sp_hash_map_iter_next(HashMapIter iter);
+SP_API void sp_hash_map_iter_get_key(HashMapIter iter, void* out_key);
+SP_API void sp_hash_map_iter_get_value(HashMapIter iter, void* out_value);
 
 // Helper functions
-SP_API u64 sp_hm_helper_hash_str(const void* key, u64 size);
-SP_API b8  sp_hm_helper_equal_str(const void* a, const void* b, u64 len);
-SP_API b8  sp_hm_helper_equal_generic(const void* a, const void* b, u64 len);
+SP_API u64 sp_hash_map_helper_hash_str(const void* key, u64 size);
+SP_API b8  sp_hash_map_helper_equal_str(const void* a, const void* b, u64 len);
+SP_API b8  sp_hash_map_helper_equal_generic(const void* a, const void* b, u64 len);
 
-#define sp_hm_desc_generic(ARENA, CAPACITY, KEY_TYPE, VALUE_TYPE) ((SP_HashMapDesc) { \
+#define sp_hash_map_desc_generic(ARENA, CAPACITY, KEY_TYPE, VALUE_TYPE) ((SP_HashMapDesc) { \
         .arena = (ARENA), \
         .capacity = (CAPACITY), \
         .hash = sp_fvn1a_hash, \
-        .equal = sp_hm_helper_equal_generic, \
+        .equal = sp_hash_map_helper_equal_generic, \
         .key_size = sizeof(KEY_TYPE), \
         .value_size = sizeof(VALUE_TYPE), \
     })
 
-#define sp_hm_desc_str(ARENA, CAPACITY, VALUE_TYPE) ((SP_HashMapDesc) { \
+#define sp_hash_map_desc_str(ARENA, CAPACITY, VALUE_TYPE) ((SP_HashMapDesc) { \
         .arena = (ARENA), \
         .capacity = (CAPACITY), \
-        .hash = sp_hm_helper_hash_str, \
-        .equal = sp_hm_helper_equal_str, \
+        .hash = sp_hash_map_helper_hash_str, \
+        .equal = sp_hash_map_helper_equal_str, \
         .key_size = sizeof(SP_Str), \
         .value_size = sizeof(VALUE_TYPE), \
     })
-
-
-SP_API b8    _sp_hash_map_insert_impl(SP_HashMap* map, const void* key, u64 key_size, const void* value, u64 value_size);
-SP_API void  _sp_hash_map_set_impl(SP_HashMap* map, const void* key, u64 key_size, const void* value, u64 value_size, void* out_prev_value);
-SP_API void  _sp_hash_map_get_impl(SP_HashMap* map, const void* key, u64 key_size, void* out_value, u64 value_size);
-SP_API void* _sp_hash_map_getp_impl(SP_HashMap* map, const void* key, u64 key_size);
-SP_API b8    _sp_hash_map_has_impl(SP_HashMap* map, const void* key, u64 key_size);
-SP_API void  _sp_hash_map_remove_impl(SP_HashMap* map, const void* key, u64 key_size, void* out_value, u64 value_size);
 
 // =============================================================================
 // LINKED LISTS
