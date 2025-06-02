@@ -890,7 +890,7 @@ struct SP_TestResult {
     b8 successful;
     const char* file;
     u32 line;
-    SP_Str reason;
+    const char* reason;
 };
 
 typedef SP_TestResult (*SP_TestFunc)(void* userdata);
@@ -903,13 +903,13 @@ extern void sp_test_suite_run(SP_TestSuite* suite);
 extern u32 sp_test_group_register(SP_TestSuite* suite, SP_Str name);
 #define sp_test_register(SUITE, GROUP, FUNC, USERDATA) _sp_test_register(SUITE, GROUP, FUNC, sp_str_lit(#FUNC), USERDATA)
 
-#define sp_test_assert(COND, REASON) do { \
+#define sp_test_assert(COND) do { \
     if (!(COND)) { \
         return (SP_TestResult) { \
             .successful = false, \
             .file = __FILE__, \
             .line = __LINE__, \
-            .reason = sp_str_lit(REASON), \
+            .reason = #COND, \
         }; \
     } \
 } while (0)

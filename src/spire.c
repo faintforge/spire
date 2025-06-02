@@ -1385,7 +1385,7 @@ void sp_test_suite_run(SP_TestSuite* suite) {
                 successful++;
             } else {
                 printf("%.*s ... \033[1;91mFAILED\033[0m\n", test.name.len, test.name.data);
-                printf("    %s:%u: %.*s\n", result.file, result.line, result.reason.len, result.reason.data);
+                printf("    %s:%u: '%s'\n", result.file, result.line, result.reason);
             }
         }
         tests_run += group.test_count;
