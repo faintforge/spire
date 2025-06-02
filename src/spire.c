@@ -1109,8 +1109,8 @@ void* sp_hash_map_getp(SP_HashMap* map, const void* key) {
 }
 
 // Iteration
-HashMapIter sp_hash_map_iter_init(SP_HashMap* map) {
-    HashMapIter iter = {
+SP_HashMapIter sp_hash_map_iter_init(SP_HashMap* map) {
+    SP_HashMapIter iter = {
         .map = map,
         .index = ~0u,
         .node = NULL,
@@ -1139,11 +1139,11 @@ HashMapIter sp_hash_map_iter_init(SP_HashMap* map) {
     return iter;
 }
 
-b8 sp_hash_map_iter_valid(HashMapIter iter) {
+b8 sp_hash_map_iter_valid(SP_HashMapIter iter) {
     return iter.map != NULL && iter.index < iter.map->capacity;
 }
 
-HashMapIter sp_hash_map_iter_next(HashMapIter iter) {
+SP_HashMapIter sp_hash_map_iter_next(SP_HashMapIter iter) {
     sp_assert(sp_hash_map_iter_valid(iter), "Hash map iterator must be valid!");
 
     SP_HashMap* map = iter.map;
@@ -1173,10 +1173,10 @@ HashMapIter sp_hash_map_iter_next(HashMapIter iter) {
             }
         } break;
     }
-    return (HashMapIter) {0};
+    return (SP_HashMapIter) {0};
 }
 
-void sp_hash_map_iter_get_key(HashMapIter iter, void* out_key) {
+void sp_hash_map_iter_get_key(SP_HashMapIter iter, void* out_key) {
     sp_assert(sp_hash_map_iter_valid(iter), "Hash map iterator must be valid!");
 
     SP_HashMap* map = iter.map;
@@ -1191,7 +1191,7 @@ void sp_hash_map_iter_get_key(HashMapIter iter, void* out_key) {
     }
 }
 
-void sp_hash_map_iter_get_value(HashMapIter iter, void* out_value) {
+void sp_hash_map_iter_get_value(SP_HashMapIter iter, void* out_value) {
     sp_assert(sp_hash_map_iter_valid(iter), "Hash map iterator must be valid!");
 
     SP_HashMap* map = iter.map;

@@ -20,7 +20,6 @@ SP_TestResult test_hash_map_insert_get(void* userdata) {
     result = sp_hash_map_insert(map, &key, &value);
     sp_test_assert(result, "Insert failed!");
 
-
     key = sp_str_lit("life");
     value = 8;
     result = sp_hash_map_insert(map, &key, &value);
@@ -233,7 +232,7 @@ SP_TestResult test_hash_map_iteration(void* userdata) {
     u32 iteration_values[COUNT] = {0};
     u32 key_index[COUNT] = {0};
     u32 i = 0;
-    for (HashMapIter iter = sp_hash_map_iter_init(map);
+    for (SP_HashMapIter iter = sp_hash_map_iter_init(map);
             sp_hash_map_iter_valid(iter);
             iter = sp_hash_map_iter_next(iter)) {
         u32 key = 0;

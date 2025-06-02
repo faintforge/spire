@@ -671,18 +671,19 @@ SP_API b8 sp_hash_map_remove(SP_HashMap* map, const void* key);
 SP_API b8 sp_hash_map_get(SP_HashMap* map, const void* key, void* out_value);
 SP_API void* sp_hash_map_getp(SP_HashMap* map, const void* key);
 
-typedef struct HashMapIter HashMapIter;
-struct HashMapIter {
+typedef struct SP_HashMapIter SP_HashMapIter;
+struct SP_HashMapIter {
     SP_HashMap* map;
     void* node;
     u32 index;
 };
 
-SP_API HashMapIter sp_hash_map_iter_init(SP_HashMap* map);
-SP_API b8 sp_hash_map_iter_valid(HashMapIter iter);
-SP_API HashMapIter sp_hash_map_iter_next(HashMapIter iter);
-SP_API void sp_hash_map_iter_get_key(HashMapIter iter, void* out_key);
-SP_API void sp_hash_map_iter_get_value(HashMapIter iter, void* out_value);
+SP_API SP_HashMapIter sp_hash_map_iter_init(SP_HashMap* map);
+SP_API b8 sp_hash_map_iter_valid(SP_HashMapIter iter);
+SP_API SP_HashMapIter sp_hash_map_iter_next(SP_HashMapIter iter);
+SP_API void sp_hash_map_iter_get_key(SP_HashMapIter iter, void* out_key);
+SP_API void sp_hash_map_iter_get_value(SP_HashMapIter iter, void* out_value);
+SP_API void* sp_hash_map_iter_get_valuep(SP_HashMapIter iter);
 
 // Helper functions
 SP_API u64 sp_hash_map_helper_hash_str(const void* key, u64 size);
