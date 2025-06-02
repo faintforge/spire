@@ -689,18 +689,20 @@ SP_API u64 sp_hash_map_helper_hash_str(const void* key, u64 size);
 SP_API b8  sp_hash_map_helper_equal_str(const void* a, const void* b, u64 len);
 SP_API b8  sp_hash_map_helper_equal_generic(const void* a, const void* b, u64 len);
 
-#define sp_hash_map_desc_generic(ARENA, CAPACITY, KEY_TYPE, VALUE_TYPE) ((SP_HashMapDesc) { \
-        .arena = (ARENA), \
+#define sp_hash_map_desc_generic(ALLOCATOR, CAPACITY, COLLISION_RESOLUTION, KEY_TYPE, VALUE_TYPE) ((SP_HashMapDesc) { \
+        .allocator = (ALLOCATOR), \
         .capacity = (CAPACITY), \
+        .collision_resolution = (COLLISION_RESOLUTION), \
         .hash = sp_fvn1a_hash, \
         .equal = sp_hash_map_helper_equal_generic, \
         .key_size = sizeof(KEY_TYPE), \
         .value_size = sizeof(VALUE_TYPE), \
     })
 
-#define sp_hash_map_desc_str(ARENA, CAPACITY, VALUE_TYPE) ((SP_HashMapDesc) { \
-        .arena = (ARENA), \
+#define sp_hash_map_desc_str(ARENA, CAPACITY, COLLISION_RESOLUTION, VALUE_TYPE) ((SP_HashMapDesc) { \
+        .allocator = (ARENA), \
         .capacity = (CAPACITY), \
+        .collision_resolution = (COLLISION_RESOLUTION), \
         .hash = sp_hash_map_helper_hash_str, \
         .equal = sp_hash_map_helper_equal_str, \
         .key_size = sizeof(SP_Str), \
