@@ -667,7 +667,7 @@ SP_API SP_HashMap* sp_hash_map_create(SP_HashMapDesc desc);
 SP_API void sp_hash_map_destroy(SP_HashMap* map);
 SP_API b8 sp_hash_map_insert(SP_HashMap* map, const void* key, const void* value);
 SP_API b8 sp_hash_map_set(SP_HashMap* map, const void* key, const void* value);
-SP_API b8 sp_hash_map_remove(SP_HashMap* map, const void* key);
+SP_API b8 sp_hash_map_remove(SP_HashMap* map, const void* key, void* out_value);
 SP_API b8 sp_hash_map_get(SP_HashMap* map, const void* key, void* out_value);
 SP_API void* sp_hash_map_getp(SP_HashMap* map, const void* key);
 

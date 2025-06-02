@@ -935,7 +935,7 @@ b8 sp_hash_map_set(SP_HashMap* map, const void* key, const void* value) {
     return false;
 }
 
-b8 sp_hash_map_remove(SP_HashMap* map, const void* key) {
+b8 sp_hash_map_remove(SP_HashMap* map, const void* key, void* out_value) {
     u64 hash = map->desc.hash(key, map->desc.key_size);
     switch (map->desc.collision_resolution) {
         case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING: {
@@ -950,6 +950,12 @@ b8 sp_hash_map_remove(SP_HashMap* map, const void* key) {
                     map->desc.equal);
             if (map->soa.state[index] == _SP_HASH_BUCKET_STATE_ALIVE) {
                 map->soa.state[index] = _SP_HASH_BUCKET_STATE_DEAD;
+                if (out_value != NULL) {
+                    u64 value_size = map->desc.value_size;
+                    memcpy(out_value,
+                        (u8*) map->soa.values + index * value_size,
+                        value_size);
+                }
                 return true;
             }
             return false;
@@ -971,6 +977,13 @@ b8 sp_hash_map_remove(SP_HashMap* map, const void* key) {
             }
 
             _SP_HashContainerChainNode* node = result.node;
+            if (out_value != NULL) {
+                void* node_value = (u8*) &result.node[1] + map->desc.key_size;
+                memcpy(out_value,
+                    node_value,
+                    map->desc.value_size);
+            }
+
             // Root node
             if (node->prev == NULL) {
                 if (node->next == NULL) {
@@ -991,7 +1004,6 @@ b8 sp_hash_map_remove(SP_HashMap* map, const void* key) {
                 if (node->next != NULL) {
                     node->next->prev = node->prev;
                 }
-
 
                 node->next = map->aos.free_list;
                 map->aos.free_list = node;
@@ -1204,6 +1216,22 @@ void sp_hash_map_iter_get_value(SP_HashMapIter iter, void* out_value) {
             memcpy(out_value, (u8*) &node[1] + map->desc.key_size, map->desc.value_size);
         } break;
     }
+}
+
+void* sp_hash_map_iter_get_valuep(SP_HashMapIter iter) {
+    sp_assert(sp_hash_map_iter_valid(iter), "Hash map iterator must be valid!");
+
+    SP_HashMap* map = iter.map;
+    switch (map->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING:
+            return (u8*) map->soa.values + iter.index * map->desc.value_size;
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            _SP_HashContainerChainNode* node = iter.node;
+            return (u8*) &node[1] + map->desc.key_size;
+        }
+    }
+
+    return NULL;
 }
 
 // Helper functions
