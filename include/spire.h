@@ -928,6 +928,47 @@ SP_API SP_Color sp_color_hsv(f32 hue, f32 saturation, f32 value);
 #define SP_COLOR_TRANSPARENT ((SP_Color) {0.0f, 0.0f, 0.0f, 0.0f})
 
 // =============================================================================
+// TESTING
+//
+// The testing framework works with suites, groups and tests. A suite contains
+// groups, and a group contains tests.
+//
+// When running a suite all groups will be run in sequential order.
+// =============================================================================
+
+typedef struct SP_TestResult SP_TestResult;
+struct SP_TestResult {
+    b8 successful;
+    const char* file;
+    u32 line;
+    SP_Str reason;
+};
+
+typedef SP_TestResult (*SP_TestFunc)(void* userdata);
+
+typedef struct SP_TestSuite SP_TestSuite;
+
+extern SP_TestSuite* sp_test_suite_create(SP_Allocator allocator);
+extern void sp_test_suite_destroy(SP_TestSuite* suite);
+extern void sp_test_suite_run(SP_TestSuite* suite);
+extern u32 sp_test_group_register(SP_TestSuite* suite, SP_Str name);
+#define sp_test_register(SUITE, GROUP, FUNC, USERDATA) _sp_test_register(SUITE, GROUP, FUNC, sp_str_lit(#FUNC), USERDATA)
+
+#define sp_test_assert(COND, REASON) do { \
+    if (!(COND)) { \
+        return (SP_TestResult) { \
+            .successful = false, \
+            .file = __FILE__, \
+            .line = __LINE__, \
+            .reason = sp_str_lit(REASON), \
+        }; \
+    } \
+} while (0)
+#define sp_test_success() return (SP_TestResult) { .successful = true, }
+
+extern void _sp_test_register(SP_TestSuite* suite, u32 group, SP_TestFunc func, SP_Str name, void* userdata);
+
+// =============================================================================
 // OS
 //
 // The OS abstraction layer.

@@ -969,6 +969,137 @@ SP_Color sp_color_hsv(f32 hue, f32 saturation, f32 value) {
     return color;
 }
 
+// -- Testing ------------------------------------------------------------------
+
+typedef struct SP_Test SP_Test;
+struct SP_Test {
+    SP_Str name;
+    SP_TestFunc func;
+    void* userdata;
+};
+
+typedef struct SP_TestGroup SP_TestGroup;
+struct SP_TestGroup {
+    SP_Str name;
+    SP_Test* tests;
+    u32 test_capacity;
+    u32 test_count;
+};
+
+struct SP_TestSuite {
+    SP_Allocator allocator;
+    SP_TestGroup* groups;
+    u32 group_capacity;
+    u32 group_count;
+};
+
+SP_TestSuite* sp_test_suite_create(SP_Allocator allocator) {
+    SP_TestSuite* suite = sp_alloc(allocator, sizeof(SP_TestSuite));
+    *suite = (SP_TestSuite) {
+        .allocator = allocator,
+        .groups = sp_alloc(allocator, 8 * sizeof(SP_TestGroup)),
+        .group_capacity = 8,
+        .group_count = 0,
+    };
+    return suite;
+}
+
+void sp_test_suite_destroy(SP_TestSuite* suite) {
+    for (u32 i = 0; i < suite->group_count; i++) {
+        SP_TestGroup* group = &suite->groups[i];
+        sp_free(suite->allocator, group->tests, group->test_capacity * sizeof(SP_Test));
+    }
+    sp_free(suite->allocator, suite->groups, suite->group_capacity * sizeof(SP_TestGroup));
+}
+
+void sp_test_suite_run(SP_TestSuite* suite) {
+    u32 tests_run = 0;
+    u32 successfully_run_tests = 0;
+    for (u32 i = 0; i < suite->group_count; i++) {
+        SP_TestGroup group = suite->groups[i];
+        printf("--- Running %u tests in group %.*s ---\n", group.test_count, group.name.len, group.name.data);
+        u32 successful = 0;
+        for (u32 j = 0; j < suite->groups[i].test_count; j++) {
+            SP_Test test = group.tests[j];
+            SP_TestResult result = test.func(test.userdata);
+            if (result.successful) {
+                printf("%.*s ... \033[0;92mOK\033[0m\n", test.name.len, test.name.data);
+                successful++;
+            } else {
+                printf("%.*s ... \033[1;91mFAILED\033[0m\n", test.name.len, test.name.data);
+                printf("    %s:%u: %.*s\n", result.file, result.line, result.reason.len, result.reason.data);
+            }
+        }
+        tests_run += group.test_count;
+        successfully_run_tests += successful;
+
+        printf("\n");
+
+        if (successful == group.test_count) {
+            printf("Result: \033[0;92m%u/%u\033[0m\n", successful, group.test_count);
+        } else {
+            printf("Result: \033[1;91m%u/%u\033[0m\n", successful, group.test_count);
+        }
+
+        printf("\n");
+    }
+
+    printf("--- SUITE RESULT ---\n");
+    const char *status_color;
+    if (successfully_run_tests == tests_run) {
+        status_color = "\033[0;92m";
+    } else {
+        status_color = "\033[0;91m";
+    }
+
+    printf("Tests run: \033[0;94m%u\033[0m\n", tests_run);
+    printf("Tests passed: %s%u\033[0m\n", status_color, successfully_run_tests);
+    printf("Tests failed: %s%u\033[0m\n", status_color, tests_run - successfully_run_tests);
+    printf("Summary: %s%u/%u\033[0m\n", status_color, successfully_run_tests, tests_run);
+}
+
+u32 sp_test_group_register(SP_TestSuite* suite, SP_Str name) {
+    if (suite->group_count == suite->group_capacity) {
+        suite->groups = sp_realloc(suite->allocator,
+                suite->groups,
+                suite->group_capacity * sizeof(SP_TestGroup),
+                suite->group_capacity * 2 * sizeof(SP_TestGroup));
+        suite->group_capacity *= 2;
+    }
+
+    u32 group = suite->group_count;
+    suite->groups[group] = (SP_TestGroup) {
+        .name = name,
+        .tests = sp_alloc(suite->allocator, 8 * sizeof(SP_Test)),
+        .test_capacity = 8,
+        .test_count = 0,
+    };
+
+    suite->group_count++;
+    return group;
+}
+
+void _sp_test_register(SP_TestSuite* suite, u32 group, SP_TestFunc func, SP_Str name, void* userdata) {
+    sp_assert(group < suite->group_count, "Group %u not registered in suite!", group);
+    SP_TestGroup* _group = &suite->groups[group];
+    if (_group->test_count == _group->test_capacity) {
+        _group->tests = sp_realloc(suite->allocator,
+                _group->tests,
+                _group->test_capacity * sizeof(SP_TestGroup),
+                _group->test_capacity * 2 * sizeof(SP_TestGroup));
+        _group->test_capacity *= 2;
+    }
+
+    u32 test = _group->test_count;
+    _group->tests[test] = (SP_Test) {
+        .name = name,
+        .func = func,
+        .userdata = userdata,
+    };
+
+    _group->test_count++;
+}
+
 // -- OS -----------------------------------------------------------------------
 // Platform specific implementation
 // :platform
