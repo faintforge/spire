@@ -476,6 +476,7 @@ SP_INLINE SP_Vec2 sp_v2_normalized(SP_Vec2 vec) {
     f32 inv_mag = 1.0f / sp_v2_magnitude(vec);
     return sp_v2_muls(vec, inv_mag);
 }
+SP_INLINE f32 sp_v2_dot(SP_Vec2 a, SP_Vec2 b) { return a.x*b.x + a.y*b.y; }
 
 typedef union SP_Ivec2 SP_Ivec2;
 union SP_Ivec2 {
