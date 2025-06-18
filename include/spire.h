@@ -671,6 +671,7 @@ SP_API b8 sp_hash_map_set(SP_HashMap* map, const void* key, const void* value);
 SP_API b8 sp_hash_map_remove(SP_HashMap* map, const void* key, void* out_value);
 SP_API b8 sp_hash_map_get(SP_HashMap* map, const void* key, void* out_value);
 SP_API void* sp_hash_map_getp(SP_HashMap* map, const void* key);
+SP_API u32 sp_hash_map_count(const SP_HashMap* map);
 
 typedef struct SP_HashMapIter SP_HashMapIter;
 struct SP_HashMapIter {
@@ -732,6 +733,21 @@ SP_API void sp_hash_set_destroy(SP_HashSet* set);
 SP_API b8 sp_hash_set_insert(SP_HashSet* set, const void* value);
 SP_API b8 sp_hash_set_remove(SP_HashSet* set, const void* value);
 SP_API b8 sp_hash_set_has(SP_HashSet* set, const void* value);
+SP_API u32 sp_hash_set_count(const SP_HashSet* set);
+
+typedef struct SP_HashSetIter SP_HashSetIter;
+struct SP_HashSetIter {
+    SP_HashSet* set;
+    void* node;
+    u32 index;
+};
+
+SP_API SP_HashSetIter sp_hash_set_iter_init(SP_HashSet* set);
+SP_API b8 sp_hash_set_iter_valid(SP_HashSetIter iter);
+SP_API SP_HashSetIter sp_hash_set_iter_next(SP_HashSetIter iter);
+SP_API void sp_hash_set_iter_get_key(SP_HashSetIter iter, void* out_key);
+SP_API void sp_hash_set_iter_get_value(SP_HashSetIter iter, void* out_value);
+SP_API void* sp_hash_set_iter_get_valuep(SP_HashSetIter iter);
 
 // =============================================================================
 // LINKED LISTS

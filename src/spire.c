@@ -522,7 +522,7 @@ SP_Str sp_str_pushf(SP_Allocator allocator, const void* fmt, ...) {
     u8* buffer = allocator.alloc(len + 1, allocator.userdata);
     vsnprintf((char*) buffer, len + 1, fmt, args);
     va_end(args);
-    buffer = allocator.realloc(buffer, len, len, allocator.userdata);
+    buffer = allocator.realloc(buffer, len + 1, len, allocator.userdata);
     return sp_str(buffer, len);
 }
 
@@ -660,6 +660,8 @@ static _SP_HashContainerGetNodeResult _sp_hash_container_get_node(
 struct SP_HashMap {
     SP_HashMapDesc desc;
     u32 capacity;
+    // Count of active elements in set
+    u32 count;
     union {
         // Struct of Arrays
         // Used for open addressing
@@ -668,6 +670,7 @@ struct SP_HashMap {
             u64* hashes;
             void* keys;
             void* values;
+            // Count of used or dead slots
             u32 count;
         } soa;
         // Array of Structs
@@ -840,7 +843,7 @@ b8 sp_hash_map_insert(SP_HashMap* map, const void* key, const void* value) {
             u64 value_size = map->desc.value_size;
             memcpy(stored_key, key, key_size);
             memcpy((u8*) map->soa.values + value_size * index, value, value_size);
-
+            map->count++;
             return true;
         }
         case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
@@ -862,6 +865,7 @@ b8 sp_hash_map_insert(SP_HashMap* map, const void* key, const void* value) {
                 void* node_value = (u8*) &result.node[1] + map->desc.key_size;
                 memcpy(node_key, key, map->desc.key_size);
                 memcpy(node_value, value, map->desc.value_size);
+                map->count++;
                 return true;
             }
             return false;
@@ -952,6 +956,7 @@ b8 sp_hash_map_remove(SP_HashMap* map, const void* key, void* out_value) {
                         (u8*) map->soa.values + index * value_size,
                         value_size);
                 }
+                map->count--;
                 return true;
             }
             return false;
@@ -1005,6 +1010,7 @@ b8 sp_hash_map_remove(SP_HashMap* map, const void* key, void* out_value) {
                 map->aos.free_list = node;
             }
 
+            map->count--;
             return true;
         }
     }
@@ -1114,6 +1120,10 @@ void* sp_hash_map_getp(SP_HashMap* map, const void* key) {
 
     sp_assert(false, "Unreachable!");
     return NULL;
+}
+
+u32 sp_hash_map_count(const SP_HashMap* map) {
+    return map->count;
 }
 
 // Iteration
@@ -1254,6 +1264,8 @@ b8 sp_hash_map_helper_equal_generic(const void* a, const void* b, u64 len) {
 struct SP_HashSet {
     SP_HashSetDesc desc;
     u32 capacity;
+    // Count of active elements in set
+    u32 count;
     union {
         // Struct of Arrays
         // Used for open addressing
@@ -1261,6 +1273,7 @@ struct SP_HashSet {
             u8* state;
             u64* hashes;
             void* values;
+            // Count of used or dead slots
             u32 count;
         } soa;
         // Array of Structs
@@ -1421,7 +1434,7 @@ b8 sp_hash_set_insert(SP_HashSet* set, const void* value) {
             set->soa.hashes[index] = hash;
             u64 value_size = set->desc.value_size;
             memcpy((u8*) set->soa.values + value_size * index, value, value_size);
-
+            set->count++;
             return true;
         }
         case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
@@ -1441,6 +1454,7 @@ b8 sp_hash_set_insert(SP_HashSet* set, const void* value) {
                 result.node->hash = hash;
                 void* node_value = &result.node[1];
                 memcpy(node_value, value, set->desc.value_size);
+                set->count++;
                 return true;
             }
             return false;
@@ -1466,6 +1480,7 @@ b8 sp_hash_set_remove(SP_HashSet* set, const void* value) {
                     set->desc.equal);
             if (set->soa.state[index] == _SP_HASH_BUCKET_STATE_ALIVE) {
                 set->soa.state[index] = _SP_HASH_BUCKET_STATE_DEAD;
+                set->count--;
                 return true;
             }
             return false;
@@ -1512,6 +1527,7 @@ b8 sp_hash_set_remove(SP_HashSet* set, const void* value) {
                 set->aos.free_list = node;
             }
 
+            set->count--;
             return true;
         }
     }
@@ -1556,6 +1572,109 @@ b8 sp_hash_set_has(SP_HashSet* set, const void* value) {
 
     sp_assert(false, "Unreachable!");
     return false;
+}
+
+u32 sp_hash_set_count(const SP_HashSet* set) {
+    return set->count;
+}
+
+// Iteration
+SP_HashSetIter sp_hash_set_iter_init(SP_HashSet* set) {
+    SP_HashSetIter iter = {
+        .set = set,
+        .index = ~0u,
+        .node = NULL,
+    };
+
+    switch (set->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING:
+            for (u32 i = 0; i < set->capacity; i++) {
+                if (set->soa.state[i] == _SP_HASH_BUCKET_STATE_ALIVE) {
+                    iter.index = i;
+                    break;
+                }
+            }
+            break;
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING:
+            for (u32 i = 0; i < set->capacity; i++) {
+                _SP_HashContainerChainNode* node = _sp_hash_set_get_node(set, i);
+                if (node->state == _SP_HASH_BUCKET_STATE_ALIVE) {
+                    iter.index = i;
+                    iter.node = node;
+                    break;
+                }
+            }
+            break;
+    }
+    return iter;
+}
+
+b8 sp_hash_set_iter_valid(SP_HashSetIter iter) {
+    return iter.set != NULL && iter.index < iter.set->capacity;
+}
+
+SP_HashSetIter sp_hash_set_iter_next(SP_HashSetIter iter) {
+    sp_assert(sp_hash_set_iter_valid(iter), "Hash set iterator must be valid!");
+
+    SP_HashSet* set = iter.set;
+    switch (set->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING:
+            for (u32 i = iter.index + 1; i < set->capacity; i++) {
+                if (set->soa.state[i] == _SP_HASH_BUCKET_STATE_ALIVE) {
+                    iter.index = i;
+                    return iter;
+                }
+            }
+        break;
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            _SP_HashContainerChainNode* node = iter.node;
+            if (node->next != NULL) {
+                iter.node = node->next;
+                return iter;
+            }
+
+            for (u32 i = iter.index + 1; i < set->capacity; i++) {
+                _SP_HashContainerChainNode* node = _sp_hash_set_get_node(set, i);
+                if (node->state == _SP_HASH_BUCKET_STATE_ALIVE) {
+                    iter.index = i;
+                    iter.node = node;
+                    return iter;
+                }
+            }
+        } break;
+    }
+    return (SP_HashSetIter) {0};
+}
+
+void sp_hash_set_iter_get_value(SP_HashSetIter iter, void* out_value) {
+    sp_assert(sp_hash_set_iter_valid(iter), "Hash set iterator must be valid!");
+
+    SP_HashSet* set = iter.set;
+    switch (set->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING:
+            memcpy(out_value, (u8*) set->soa.values + iter.index * set->desc.value_size, set->desc.value_size);
+            break;
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            _SP_HashContainerChainNode* node = iter.node;
+            memcpy(out_value, (u8*) &node[1], set->desc.value_size);
+        } break;
+    }
+}
+
+void* sp_hash_set_iter_get_valuep(SP_HashSetIter iter) {
+    sp_assert(sp_hash_set_iter_valid(iter), "Hash set iterator must be valid!");
+
+    SP_HashSet* set = iter.set;
+    switch (set->desc.collision_resolution) {
+        case SP_HASH_COLLISION_RESOLUTION_OPEN_ADDRESSING:
+            return (u8*) set->soa.values + iter.index * set->desc.value_size;
+        case SP_HASH_COLLISION_RESOLUTION_SEPARATE_CHAINING: {
+            _SP_HashContainerChainNode* node = iter.node;
+            return (u8*) &node[1];
+        }
+    }
+
+    return NULL;
 }
 
 // -- Color --------------------------------------------------------------------
