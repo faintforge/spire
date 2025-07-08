@@ -506,6 +506,49 @@ SP_INLINE f32 sp_iv2_magnitude(SP_Ivec2 vec) { return sqrtf(sp_iv2_magnitude_squ
 SP_INLINE SP_Vec2  sp_iv2_to_v2(SP_Ivec2 vec) { return sp_v2(vec.x, vec.y); }
 SP_INLINE SP_Ivec2 sp_v2_to_iv2(SP_Vec2 vec) { return sp_iv2(vec.x, vec.y); }
 
+typedef union SP_Vec3 SP_Vec3;
+union SP_Vec3 {
+    struct {
+        f32 x, y, z;
+    };
+    f32 elements[3];
+};
+
+SP_INLINE SP_Vec3 sp_v3(f32 x, f32 y, f32 z) { return (SP_Vec3) {{x, y, z}}; }
+SP_INLINE SP_Vec3 sp_v3s(f32 scaler) { return (SP_Vec3) {{scaler, scaler, scaler}}; }
+
+SP_INLINE SP_Vec3 sp_v3_add(SP_Vec3 a, SP_Vec3 b) { return sp_v3(a.x + b.x, a.y + b.y, a.z + b.z); }
+SP_INLINE SP_Vec3 sp_v3_sub(SP_Vec3 a, SP_Vec3 b) { return sp_v3(a.x - b.x, a.y - b.y, a.z - b.z); }
+SP_INLINE SP_Vec3 sp_v3_mul(SP_Vec3 a, SP_Vec3 b) { return sp_v3(a.x * b.x, a.y * b.y, a.z * b.z); }
+SP_INLINE SP_Vec3 sp_v3_div(SP_Vec3 a, SP_Vec3 b) { return sp_v3(a.x / b.x, a.y / b.y, a.z / b.z); }
+
+SP_INLINE SP_Vec3 sp_v3_adds(SP_Vec3 vec, f32 scaler) { return sp_v3(vec.x + scaler, vec.y + scaler, vec.z + scaler); }
+SP_INLINE SP_Vec3 sp_v3_subs(SP_Vec3 vec, f32 scaler) { return sp_v3(vec.x - scaler, vec.y - scaler, vec.z - scaler); }
+SP_INLINE SP_Vec3 sp_v3_muls(SP_Vec3 vec, f32 scaler) { return sp_v3(vec.x * scaler, vec.y * scaler, vec.z * scaler); }
+SP_INLINE SP_Vec3 sp_v3_divs(SP_Vec3 vec, f32 scaler) { return sp_v3(vec.x / scaler, vec.y / scaler, vec.z / scaler); }
+
+SP_INLINE f32 sp_v3_magnitude_squared(SP_Vec3 vec) { return vec.x * vec.x + vec.y * vec.y + vec.z * vec.z; }
+SP_INLINE f32 sp_v3_magnitude(SP_Vec3 vec) { return sqrtf(sp_v3_magnitude_squared(vec)); }
+SP_INLINE SP_Vec3 sp_v3_normalized(SP_Vec3 vec) {
+    f32 inv_mag = 1.0f / sp_v3_magnitude(vec);
+    return sp_v3_muls(vec, inv_mag);
+}
+SP_INLINE f32 sp_v3_dot(SP_Vec3 a, SP_Vec3 b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
+
+typedef union SP_Ivec3 SP_Ivec3;
+union SP_Ivec3 {
+    struct {
+        i32 x, y, z;
+    };
+    i32 elements[3];
+};
+
+SP_INLINE SP_Ivec3 sp_iv3(i32 x, i32 y, i32 z) { return (SP_Ivec3) {{x, y, z}}; }
+SP_INLINE SP_Ivec3 sp_iv3s(i32 scaler) { return (SP_Ivec3) {{scaler, scaler, scaler}}; }
+
+SP_INLINE SP_Vec3  sp_iv3_to_v3(SP_Ivec3 vec) { return sp_v3(vec.x, vec.y, vec.z); }
+SP_INLINE SP_Ivec3 sp_v3_to_iv3(SP_Vec3 vec) { return sp_iv3(vec.x, vec.y, vec.z); }
+
 typedef union SP_Vec4 SP_Vec4;
 union SP_Vec4 {
     struct {
